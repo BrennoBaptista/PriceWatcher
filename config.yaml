@@ -25,13 +25,19 @@ stores:
   kabum:      { enabled: true,  categories: [gpu] }
   pichau:     { enabled: true,  categories: [gpu] }
   terabyte:   { enabled: true,  categories: [gpu] }
-  # Fase 5 -- varejo generalista (ver secao 18 da SPEC)
-  casasbahia: { enabled: false, categories: [console], platform: gcb }
-  ponto:      { enabled: false, categories: [console], platform: gcb }
-  magalu:     { enabled: false, categories: [console], platform: magalu }
-  americanas: { enabled: false, categories: [console], platform: americanas }
-  casaevideo: { enabled: false, categories: [console], platform: vtex,
+  # Fase 5 -- varejo generalista. Ambas rodam VTEX e usam o MESMO adapter,
+  # parametrizado pelo dominio. Ver secao 18 da SPEC.
+  casaevideo: { enabled: true, categories: [console], platform: vtex,
                 base_url: "https://www.casaevideo.com.br" }
+  americanas: { enabled: true, categories: [console], platform: vtex,
+                base_url: "https://www.americanas.com.br" }
+
+  # Descartadas no spike da Fase 5: as tres ficam atras do Akamai Bot Manager,
+  # que exige execucao de JavaScript. O servidor e um Core 2 Duo e nao comporta
+  # navegador headless (secao 12), entao a decisao ja estava tomada.
+  casasbahia: { enabled: false, categories: [console] }
+  ponto:      { enabled: false, categories: [console] }
+  magalu:     { enabled: false, categories: [console] }
 
 targets:
   - id: RX_9070_XT

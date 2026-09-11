@@ -18,7 +18,7 @@ manual.
 | Fase | Produto | Lojas |
 |---|---|---|
 | v1 (Fases 0–3) | Placas de vídeo **RX 9070 XT** e **RTX 5070 Ti** | Kabum, Pichau, Terabyteshop |
-| Fase 5 | Console **Sony PlayStation 5** (todas as variantes, incluindo bundles) | Casas Bahia, Ponto, Magalu, Americanas, Casa e Vídeo |
+| Fase 5 | Console **Sony PlayStation 5** (todas as variantes, incluindo bundles) | Americanas, Casa e Vídeo |
 
 O modelo de dados e os coletores são **agnósticos de categoria** desde a Fase 1 — ver
 seção 5. Adicionar um produto novo é configuração, não refatoração.
@@ -48,8 +48,8 @@ seção 5. Adicionar um produto novo é configuração, não refatoração.
 ### Fora do escopo (v1)
 
 - Compra automática / carrinho.
-- **PlayStation 5 e o varejo generalista** (Casas Bahia, Ponto, Magalu, Americanas,
-  Casa e Vídeo) — planejado na seção 18, entregue na **Fase 5**.
+- **PlayStation 5 e o varejo generalista** (Americanas, Casa e Vídeo) — planejado na
+  seção 18, entregue na **Fase 5**.
 - **Amazon.com.br** — ver a análise na seção 4.1. Reavaliada na Fase 4 via agregador
   brasileiro, não por scraping direto.
 - Mercado Livre, marketplaces de terceiros dentro das lojas.
@@ -933,10 +933,7 @@ Pricelookup/
 │   │   ├── pichau.py
 │   │   ├── terabyte.py
 │   │   └── platforms/       # Fase 5 — adapter por família, não por marca
-│   │       ├── vtex.py      #   genérico, parametrizado por domínio
-│   │       ├── gcb.py       #   Casas Bahia + Ponto
-│   │       ├── magalu.py
-│   │       └── americanas.py
+│   │       └── vtex.py      #   genérico: Casa e Vídeo + Americanas
 │   ├── normalize.py          # título → gpu_model/brand/model_line + filtros
 │   ├── db.py                 # schema, migrações, repositório
 │   ├── alerts.py             # regras de mínimo histórico e volta ao estoque
@@ -1039,24 +1036,87 @@ A observação que muda o custo desta fase: **as cinco lojas não são cinco pro
 Elas se agrupam em quatro famílias de plataforma, e adapter se escreve por família,
 não por marca.
 
-| Loja | Família | Hipótese de coleta |
+✅ **Spike executado em 2026-09-11.** Resultado abaixo — a hipótese acertou no
+mecanismo e errou no elenco.
+
+| Loja | Resultado | Fonte |
 |---|---|---|
-| Casas Bahia | `gcb` | Grupo Casas Bahia — plataforma compartilhada com Ponto (e Extra). **Um adapter cobre as duas** |
-| Ponto | `gcb` | idem acima, mudando só o domínio |
-| Casa e Vídeo | `vtex` | Loja VTEX. A VTEX expõe uma **API pública de catálogo** (`/api/catalog_system/pub/products/search?ft=<termo>`) |
-| Magalu | `magalu` | Plataforma própria; adapter dedicado |
-| Americanas | `americanas` | Plataforma própria, compartilhada com Submarino/Shoptime |
+| **Casa e Vídeo** | ✅ coletando | API pública de catálogo VTEX |
+| **Americanas** | ✅ coletando | API pública de catálogo VTEX |
+| Casas Bahia | ❌ descartada | Akamai Bot Manager (exige JS) |
+| Ponto | ❌ descartada | Akamai Bot Manager (exige JS) |
+| Magalu | ❌ descartada | Akamai Bot Manager (exige JS) |
 
-O bilhete premiado aqui é o **adapter VTEX genérico**: parametrizado por domínio, ele
-cobre a Casa e Vídeo e, de brinde, boa parte do varejo brasileiro que roda VTEX.
-Adicionar uma loja VTEX nova passaria a ser uma entrada de config — zero código.
+**O adapter VTEX genérico pagou, e melhor que o previsto.** A hipótese era que ele
+cobriria a Casa e Vídeo. Na verdade a **Americanas também roda VTEX** — o HTML dela
+declara `window.VTEX_METADATA = {account:'americanas', renderer:'faststore'}` — então
+as duas lojas são atendidas por **um único adapter**, parametrizado por domínio. A spec
+antes previa um adapter dedicado para a Americanas; não é preciso. Qualquer outra loja
+VTEX passa a ser uma entrada de config, sem código.
 
-> ⚠️ **Tudo nesta tabela é hipótese, não fato verificado.** As famílias de plataforma e,
-> principalmente, a disponibilidade da API VTEX precisam ser confirmadas antes de
-> qualquer estimativa. É exatamente o papel do spike abaixo — mesmo tratamento que
-> demos às três lojas de hardware na seção 4.
+**Três lojas caíram, e a decisão já estava tomada.** Casas Bahia, Ponto e Magalu ficam
+atrás do **Akamai Bot Manager** — a resposta é uma casca de 2 a 6 KB com
+`akam-sw.js` e "Powered and protected by Privacy", que só vira conteúdo depois de
+executar JavaScript e resolver o desafio. Contornar isso exigiria navegador headless, o
+que o Core 2 Duo do servidor não comporta (seção 12). Pela regra da própria seção 11,
+**loja que exige JS é loja descartada** — então elas ficam desabilitadas na config, com
+o motivo registrado ali.
 
-### Spike da Fase 5 (fazer antes de qualquer código)
+Vale notar o que isso custa: Casas Bahia e Ponto compartilham dono e catálogo, então a
+perda real é de dois grupos de varejo, não de três lojas independentes.
+
+**O que a API VTEX entrega**, por item:
+
+| Campo | Origem |
+|---|---|
+| Preço à vista | `Installments` → entrada com `PaymentSystemName == "Pix"` e `NumberOfInstallments == 1` |
+| Preço cheio | `commertialOffer.Price` |
+| Disponibilidade | `IsAvailable` **e** `AvailableQuantity > 0` |
+| Vendedor | `sellerId == "1"` é a própria loja; qualquer outro é marketplace |
+| SKU | `items[].itemId` |
+
+O PIX não é detalhe: na Casa e Vídeo ele estava **17% abaixo** do `Price`. Usar o campo
+óbvio daria o número errado em todo alerta.
+
+### 18.1 Um bug de desenho que o PS5 revelou
+
+O console trouxe à tona um erro que já estava no código e afetava também as GPUs:
+**o normalizador descartava qualquer oferta sem preço à vista.**
+
+Parecia razoável — até aparecer o caso real. Na VTEX, item esgotado simplesmente **não
+traz `Installments`**, então não tem preço nenhum. Todos os 12 PS5 da Casa e Vídeo caíam
+fora por isso. E o efeito não é perder uma linha na base: sem gravar a observação
+"indisponível", **nunca existe a transição indisponível → disponível**, e o alerta de
+volta ao estoque jamais dispararia. Silenciosamente, para sempre.
+
+A regra corrigida separa os dois casos:
+
+- **Indisponível e sem preço** → estado normal de item esgotado. Registra.
+- **Disponível e sem preço** → aí sim é parser quebrado. Descarta e conta.
+
+Nas GPUs o bug estava latente porque as três lojas mandam preço mesmo com estoque zero.
+Há teste de regressão para os dois casos.
+
+### Spike da Fase 5 — perguntas e respostas
+
+As cinco perguntas do plano original, respondidas com evidência:
+
+| # | Pergunta | Resposta |
+|---|---|---|
+| 1 | A API VTEX responde para a Casa e Vídeo, com preço à vista? | **Sim.** 473 KB de JSON; PIX separado em `Installments` |
+| 2 | Casas Bahia e Ponto compartilham estrutura? | **Irrelevante:** as duas caem no mesmo bloqueio Akamai |
+| 3 | Dá para saber quem é o vendedor? | **Sim**, e de forma limpa: `sellerId == "1"` é 1P |
+| 4 | Alguma exige JavaScript? | **Três exigem** — e por isso foram descartadas |
+| 5 | Os filtros separam console de acessório sem matar bundles? | **Sim**, depois de ajuste — ver abaixo |
+
+Sobre a pergunta 5: o `require_any` (console/1TB/825GB) descarta jogo e acessório sem
+tocar nos combos, como planejado. Mas a detecção de bundle precisou de conserto —
+*"Console PlayStation 5 Slim Disk com 2 Jogos"* passava como avulso. Detalhe que só
+aparece com título real: **todo PS5 vem com um controle**, então "1 Controle" é conteúdo
+de caixa e "2 controles" ou "controle extra" é que indicam combo. A regra distingue os
+dois.
+
+### Texto original do spike (mantido para referência)
 
 Responder, com evidência:
 

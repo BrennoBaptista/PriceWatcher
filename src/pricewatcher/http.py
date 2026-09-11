@@ -95,7 +95,10 @@ class Fetcher:
             except RequestException as e:
                 ultima = e
             else:
-                if r.status_code == 200:
+                # Qualquer 2xx serve. A API de catalogo da VTEX responde 206
+                # (Partial Content) em busca paginada -- e o comportamento
+                # correto dela, nao erro.
+                if 200 <= r.status_code < 300:
                     return r.text
                 if r.status_code in (403, 429):
                     raise BlocoDeAcesso(

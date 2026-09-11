@@ -17,15 +17,35 @@ from .normalize import normaliza
 from .stores.base import StoreAdapter
 from .stores.kabum import KabumAdapter
 from .stores.pichau import PichauAdapter
+from .stores.platforms.vtex import VtexAdapter
 from .stores.terabyte import TerabyteAdapter
 
 log = logging.getLogger(__name__)
 
+# Lojas com adapter proprio.
 ADAPTERS: dict[str, type[StoreAdapter]] = {
     "kabum": KabumAdapter,
     "pichau": PichauAdapter,
     "terabyte": TerabyteAdapter,
 }
+
+# Lojas atendidas por um adapter de plataforma, parametrizado pela config.
+PLATAFORMAS = {"vtex": VtexAdapter}
+
+
+def monta_adapter(loja: str, cfg: AppConfig) -> StoreAdapter | None:
+    """Resolve a loja para um adapter, proprio ou de plataforma."""
+    if loja in ADAPTERS:
+        return ADAPTERS[loja]()
+
+    ajustes = cfg.stores.get(loja)
+    if ajustes and ajustes.platform in PLATAFORMAS:
+        if not ajustes.base_url:
+            log.error("loja %r usa plataforma %r mas nao tem base_url na config",
+                      loja, ajustes.platform)
+            return None
+        return PLATAFORMAS[ajustes.platform](loja, ajustes.base_url)
+    return None
 
 
 @dataclass
@@ -68,15 +88,15 @@ def _coleta_uma(
     loja: str,
     resumo: ResumoColeta,
 ) -> None:
-    classe = ADAPTERS.get(loja)
-    if classe is None:
+    adapter = monta_adapter(loja, cfg)
+    if adapter is None:
         log.error("loja %r habilitada na config mas sem adapter", loja)
         resumo.falhas.append(f"{loja}/{target.id}: adapter inexistente")
         return
 
     run_id = repo.inicia_run(loja, target.id)
     try:
-        brutas = classe().fetch(target, fetcher)
+        brutas = adapter.fetch(target, fetcher)
     except Exception as e:  # noqa: BLE001 -- isolamento e o objetivo
         log.exception("[%s/%s] coleta falhou", loja, target.id)
         repo.encerra_run(run_id, RunStatus.FAILED, erro=f"{type(e).__name__}: {e}")
