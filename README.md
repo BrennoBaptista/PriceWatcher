@@ -52,6 +52,12 @@ num servidor novo):
 .venv/Scripts/python -m pricewatcher --selftest
 ```
 
+Situação atual — última coleta, aquecimento, preços e próxima execução:
+
+```bash
+.venv/Scripts/python -m pricewatcher --status
+```
+
 ## Deploy
 
 ```bash
@@ -68,6 +74,12 @@ Se passou, sobe o agendador:
 
 ```bash
 docker compose up -d
+```
+
+Para acompanhar depois, sem abrir o SQLite na mão:
+
+```bash
+docker compose exec pricewatcher python -m pricewatcher --status --config /app/config.yaml
 ```
 
 Os testes não tocam a rede — rodam contra respostas reais congeladas em

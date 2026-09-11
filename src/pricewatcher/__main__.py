@@ -61,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="verifica se o ambiente consegue coletar")
     modo.add_argument("--healthcheck", action="store_true",
                       help="usado pelo HEALTHCHECK do Docker")
+    modo.add_argument("--status", action="store_true",
+                      help="mostra ultima coleta, aquecimento, precos e agenda")
     modo.add_argument("--test-notify", action="store_true",
                       help="manda uma mensagem de teste aos destinos")
 
@@ -95,6 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.selftest:
         from .selftest import executa
         return executa(cfg, rede=not args.offline)
+
+    if args.status:
+        from .status import executa as mostra_status
+        return mostra_status(cfg, caminho_db)
 
     if args.test_notify:
         return _teste_notificacao(cfg)
