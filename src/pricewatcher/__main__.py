@@ -21,51 +21,100 @@ RAIZ = Path(__file__).resolve().parents[2]
 log = logging.getLogger("pricewatcher")
 
 
+class _FormatterComFuso(logging.Formatter):
+    """Carimba o log no fuso configurado, com offset explicito.
+
+    Sem isso o horario do log pode nao bater com o horario do agendamento: no
+    Windows, TZ com nome IANA nao e entendido pelo runtime C e o logging cai
+    para UTC silenciosamente. Quem for investigar "por que nao coletou as 08:00"
+    precisa que os dois relogios sejam o mesmo.
+    """
+
+    def __init__(self, fmt: str, tz) -> None:
+        super().__init__(fmt)
+        self._tz = tz
+
+    def formatTime(self, record, datefmt=None) -> str:  # noqa: N802 (API do stdlib)
+        from datetime import datetime
+
+        return datetime.fromtimestamp(record.created, self._tz).strftime(
+            datefmt or "%Y-%m-%d %H:%M:%S %z"
+        )
+
+
 def _log(nivel: str) -> None:
-    logging.basicConfig(
-        level=getattr(logging, nivel.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)-7s %(name)-28s %(message)s",
-        datefmt="%H:%M:%S",
+    from .scheduler import fuso
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        _FormatterComFuso("%(asctime)s %(levelname)-7s %(name)-28s %(message)s", fuso())
     )
+    raiz = logging.getLogger()
+    raiz.handlers[:] = [handler]
+    raiz.setLevel(getattr(logging, nivel.upper(), logging.INFO))
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="pricewatcher")
-    p.add_argument("--run-once", action="store_true", help="executa uma coleta e sai")
-    p.add_argument("--serve", action="store_true",
-                   help="roda o agendador continuamente (Fase 3)")
+    modo = p.add_mutually_exclusive_group(required=True)
+    modo.add_argument("--run-once", action="store_true", help="uma coleta e sai")
+    modo.add_argument("--serve", action="store_true", help="agendador continuo")
+    modo.add_argument("--selftest", action="store_true",
+                      help="verifica se o ambiente consegue coletar")
+    modo.add_argument("--healthcheck", action="store_true",
+                      help="usado pelo HEALTHCHECK do Docker")
+    modo.add_argument("--test-notify", action="store_true",
+                      help="manda uma mensagem de teste aos destinos")
+
     p.add_argument("--config", type=Path, default=RAIZ / "config.yaml")
     p.add_argument("--env", type=Path, default=RAIZ / ".env")
     p.add_argument("--db", type=Path, default=None)
     p.add_argument("--dry-run", action="store_true",
-                   help="avalia os alertas e mostra a mensagem, sem enviar nada")
-    p.add_argument("--test-notify", action="store_true",
-                   help="so envia uma mensagem de teste aos destinos e sai")
+                   help="avalia e mostra a mensagem, sem enviar")
+    p.add_argument("--run-on-start", action="store_true",
+                   help="com --serve, coleta uma vez ao subir")
+    p.add_argument("--max-age-hours", type=int, default=24,
+                   help="com --healthcheck, idade maxima da ultima coleta")
+    p.add_argument("--offline", action="store_true",
+                   help="com --selftest, pula a sondagem de rede")
     args = p.parse_args(argv)
 
-    if not (args.run_once or args.serve or args.test_notify):
-        p.error("escolha --run-once, --serve ou --test-notify")
+    caminho_db = args.db or Path(
+        os.environ.get("DB_PATH") or RAIZ / "data" / "prices.db"
+    )
+
+    # Healthcheck e chamado a todo instante pelo Docker: sem log verboso,
+    # sem carregar config, sem exigir segredo.
+    if args.healthcheck:
+        from .selftest import healthcheck
+        return healthcheck(caminho_db, args.max_age_hours)
 
     cfg = carrega(args.config, env=args.env)
     _log(os.environ.get("LOG_LEVEL", "INFO"))
 
+    if args.selftest:
+        from .selftest import executa
+        return executa(cfg, rede=not args.offline)
+
     if args.test_notify:
         return _teste_notificacao(cfg)
 
-    if args.serve:
-        print("--serve chega na Fase 3 (agendador). Use --run-once.", file=sys.stderr)
-        return 2
+    if args.run_once:
+        return _rodada(cfg, caminho_db, dry_run=args.dry_run)
 
-    caminho_db = args.db or Path(os.environ.get("DB_PATH") or RAIZ / "data" / "prices.db")
+    return _serve(cfg, caminho_db, args)
+
+
+# ----------------------------------------------------------------- execucao
+def _rodada(cfg, caminho_db: Path, dry_run: bool = False) -> int:
     with Repo(caminho_db) as repo:
         resumo = coleta(cfg, repo)
         alertas = avalia(
-            repo, resumo.produtos, cfg.alerts,
-            alvos={t.id: t for t in cfg.targets},
+            repo, resumo.produtos, cfg.alerts, alvos={t.id: t for t in cfg.targets}
         )
         _relatorio(repo, resumo, alertas, caminho_db)
 
-        if args.dry_run:
+        if dry_run:
             if alertas:
                 print("--- mensagem que seria enviada ---")
                 print(render.digest(alertas))
@@ -76,6 +125,33 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if resumo.falhas else 0
 
 
+def _serve(cfg, caminho_db: Path, args) -> int:
+    from .scheduler import monta, proximas
+
+    def tarefa() -> None:
+        log.info("--- coleta agendada iniciando ---")
+        try:
+            _rodada(cfg, caminho_db)
+        except Exception:  # noqa: BLE001 -- o agendador nao pode morrer por isso
+            log.exception("coleta agendada falhou por completo")
+
+    sched = monta(cfg.schedule, tarefa)
+
+    if args.run_on_start:
+        tarefa()
+
+    for nome, quando in proximas(sched):
+        log.info("proxima execucao de %r: %s", nome, quando)
+
+    log.info("agendador no ar; Ctrl+C para sair")
+    try:
+        sched.start()
+    except (KeyboardInterrupt, SystemExit):
+        log.info("encerrando")
+    return 0
+
+
+# ------------------------------------------------------------- notificacao
 def _transporte():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -119,6 +195,7 @@ def _teste_notificacao(cfg) -> int:
     return 0 if ok else 1
 
 
+# ---------------------------------------------------------------- relatorio
 def _relatorio(repo: Repo, resumo, alertas, caminho_db: Path) -> None:
     print()
     print("=" * 72)

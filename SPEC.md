@@ -808,6 +808,30 @@ services:
 
 Segredos via arquivo `.env` fora do git. O `.gitignore` cobre `.env`, `data/` e `*.db`.
 
+### Procedimento de deploy
+
+A ordem importa: o autoteste vem **antes** de deixar o serviço no ar, porque ele
+responde o risco aberto do `curl_cffi` (seção 11.2) em uma linha, em vez de a gente
+descobrir por silêncio de alertas dias depois.
+
+```bash
+git clone https://github.com/BrennoBaptista/PriceWatcher.git && cd PriceWatcher
+cp .env.example .env    # preencher token e os dois chat_id
+docker compose build
+docker compose run --rm pricewatcher --selftest     # 1. o ambiente aguenta?
+docker compose run --rm pricewatcher --test-notify  # 2. os canais respondem?
+docker compose run --rm pricewatcher --run-once     # 3. coleta de verdade
+docker compose up -d                                # 4. agendador no ar
+```
+
+Se o passo 1 falhar ao carregar o `curl_cffi`, **pare**: o binário não roda naquele
+CPU e o plano B da seção 11.2 precisa entrar antes de qualquer outra coisa. O `curl`
+do sistema já está instalado na imagem justamente para isso.
+
+⚠️ **Não verificado:** a imagem foi escrita mas **não construída** — a máquina de
+desenvolvimento não tem Docker. O primeiro `docker compose build` no servidor é
+também o primeiro teste do Dockerfile.
+
 ### Backup
 
 O banco é um único arquivo em `./data`. Backup = copiar o arquivo. Comando documentado
@@ -882,7 +906,7 @@ Pricelookup/
 | **0 — Spike** ✅ | Validar como extrair preço de cada loja | **Concluída em 2026-09-11.** `spikes/fase0_probe.py` imprime título + preço à vista das 3 lojas com 0 falhas. Resultados e correções na seção 4 |
 | **1 — Núcleo** ✅ | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | **Concluída em 2026-09-11.** `--run-once` coletou 843 ofertas reais → 107 mantidas, persistidas em SQLite; 34 testes offline passando |
 | **2 — Alertas** ✅ | Motor de alertas + guardrails + notificador com fan-out de destinos | **Concluída em 2026-09-11.** Motor com os 4 guardrails, digest único por rodada, roteamento por destino; 63 testes offline |
-| **3 — Container** | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | Roda 48h no servidor sem intervenção |
+| **3 — Container** 🟡 | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | **Código pronto em 2026-09-11; deploy pendente.** Imagem e compose escritos mas **não construídos** — não há Docker na máquina de desenvolvimento. Fecha quando rodar 48h no servidor |
 | **4 — Extras** | Experimento Zoom/Buscapé (seção 4.1) · comandos `/precos` e `/status` no bot · gráfico de histórico · export CSV | Sob demanda. O experimento do agregador só vira adapter definitivo se trouxer oferta melhor que as 3 lojas diretas |
 | **5 — PS5** | Spike das plataformas · adapters do varejo generalista · variantes e bundles · regra 1P | Ver seção 18. **Independente da Fase 4** — pode vir antes |
 

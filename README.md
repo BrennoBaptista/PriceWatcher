@@ -14,8 +14,10 @@ Roda como um único container Docker num servidor pessoal.
 
 ✅ **Fase 0** — extração das três lojas validada contra os sites reais.
 ✅ **Fase 1** — núcleo: coleta real persistida em SQLite.
-✅ **Fase 2** — alertas e Telegram: digest único por rodada, com guardrails. 63 testes.
-🚧 **Fase 3 — container e agendador** é o próximo passo.
+✅ **Fase 2** — alertas e Telegram: digest único por rodada, com guardrails.
+🟡 **Fase 3** — container e agendador escritos; **deploy no servidor pendente**.
+
+72 testes, todos offline.
 
 O planejamento completo está em **[SPEC.md](SPEC.md)**.
 
@@ -41,6 +43,31 @@ Testar só os canais do Telegram:
 
 ```bash
 .venv/Scripts/python -m pricewatcher --test-notify
+```
+
+Verificar se o ambiente consegue coletar (roda isto **antes** de subir o serviço
+num servidor novo):
+
+```bash
+.venv/Scripts/python -m pricewatcher --selftest
+```
+
+## Deploy
+
+```bash
+cp .env.example .env && docker compose build
+```
+
+Confira o ambiente antes de deixar no ar:
+
+```bash
+docker compose run --rm pricewatcher --selftest
+```
+
+Se passou, sobe o agendador:
+
+```bash
+docker compose up -d
 ```
 
 Os testes não tocam a rede — rodam contra respostas reais congeladas em

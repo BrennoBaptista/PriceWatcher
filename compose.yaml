@@ -1,0 +1,30 @@
+services:
+  pricewatcher:
+    build: .
+    image: pricewatcher:latest
+    container_name: pricewatcher
+    platform: linux/amd64
+    restart: unless-stopped
+
+    # Segredos vem do .env do host, que nunca entra no git.
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?defina no .env}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?defina no .env}
+      TELEGRAM_GROUP_CHAT_ID: ${TELEGRAM_GROUP_CHAT_ID:?defina no .env}
+      TZ: America/Sao_Paulo
+      LOG_LEVEL: INFO
+
+    volumes:
+      - ./data:/data                       # SQLite persistente
+      - ./config.yaml:/app/config.yaml:ro  # ajustar alvos sem rebuild
+
+    # O processo fica ocioso quase o tempo todo; estes limites existem para o
+    # container nunca ser o motivo de o servidor engasgar.
+    mem_limit: 512m
+    cpus: 1.0
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
