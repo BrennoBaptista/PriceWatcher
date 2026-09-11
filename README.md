@@ -12,8 +12,15 @@ Roda como um único container Docker num servidor pessoal.
 
 ## Status
 
-🚧 **Fase 0 — spike de descoberta.** Ainda sem código de aplicação.
-O planejamento completo está em **[SPEC.md](SPEC.md)**.
+✅ **Fase 0 concluída** — a extração das três lojas está validada contra os sites reais.
+🚧 **Fase 1 — núcleo** é o próximo passo. Ainda sem código de aplicação.
+
+O planejamento completo está em **[SPEC.md](SPEC.md)**; os resultados do spike, na
+seção 4.
+
+```bash
+python spikes/fase0_probe.py
+```
 
 ## Como vai funcionar
 

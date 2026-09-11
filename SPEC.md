@@ -118,16 +118,48 @@ Uma loja mudar o HTML **não pode** derrubar a coleta das outras. Falha de um ad
 
 ## 4. Coletores por loja
 
-Para cada loja, a estratégia preferida é a de menor custo e maior estabilidade
-disponível. A validação dos seletores/endpoints exatos é a **primeira tarefa da
-implementação** (spike de descoberta), porque estrutura de site muda e nada aqui deve
-ser tratado como verdade confirmada antes do teste.
+✅ **Validado pelo spike da Fase 0 em 2026-09-11** (`spikes/fase0_probe.py`). As três
+lojas entregam título, SKU, preço à vista e disponibilidade. A tabela abaixo descreve o
+que **funciona de fato**, não o que se esperava.
 
-| Loja | Estratégia pretendida | Risco | Observações |
-|---|---|---|---|
-| **Kabum** | Página de busca (Next.js) — extrair o JSON embutido (`__NEXT_DATA__`) em vez de raspar DOM. Se houver endpoint JSON público de busca, preferir. | Baixo/Médio | JSON embutido é bem mais estável que seletor CSS. Preço à vista vem separado do parcelado. |
-| **Pichau** | Loja Magento 2 → tentar a API **GraphQL** (`/graphql`, query `products(search:)`). Fallback: HTML. | Baixo/Médio | Se o GraphQL responder, é a fonte mais limpa das três. |
-| **Terabyteshop** | HTML server-rendered da página de busca, parsing com seletores CSS. | Médio | Preço à vista aparece explicitamente. Seletores precisam de teste de regressão. |
+| Loja | Fonte confirmada | Preço à vista | Disponibilidade | SKU |
+|---|---|---|---|---|
+| **Kabum** | `__NEXT_DATA__` → `props.pageProps.data.catalogServer.data[]` (Next.js Pages Router) | `priceWithDiscount` | `quantity > 0` ⚠️ | `code` |
+| **Pichau** | Payload RSC do App Router (`self.__next_f`) | `pichau_prices.avista` (método PIX) | `stock_status == "IN_STOCK"` | `sku` |
+| **Terabyteshop** | HTML server-rendered, atributos no card | `data-tss-price` | `data-tss-estoque == "1"` | da URL `/produto/<id>/` |
+
+Resultado da execução (busca por `rx 9070 xt`):
+
+```
+[kabum]    42 brutos -> 17 casam regex -> 7 validos (1P + faixa) -> 7 disponiveis
+[pichau]   36 brutos -> 18 casam regex -> 18 validos             -> 18 disponiveis
+[terabyte] 300 brutos -> 34 casam regex -> 34 validos            -> 4 disponiveis
+FALHAS: 0
+```
+
+**Correções que o spike impôs ao plano original:**
+
+1. **Pichau não tem GraphQL público.** A hipótese de Magento 2 estava errada — `/graphql`
+   devolve uma página de manutenção do frontend legado. Eles migraram para Next.js App
+   Router, e os dados vêm no payload RSC (`self.__next_f`), que ainda é JSON de origem
+   GraphQL (os objetos carregam `__typename`). A extração exige remontar os chunks e
+   desescapar, mas o objeto final é limpo e traz `pichau_prices.avista` já separado do
+   parcelado — exatamente o campo que queremos.
+2. **O campo `available` da Kabum é inútil.** Ele vem `true` em **42 de 42** itens,
+   incluindo produtos claramente esgotados. Usar esse campo quebraria o alerta de volta
+   ao estoque de forma silenciosa. O sinal correto é `quantity > 0`. Ver seção 7.1.
+3. **Sem cabeçalhos de navegador, Pichau e Terabyte devolvem 403.** `User-Agent`
+   sozinho não basta: o conjunto precisa ser coerente (`Accept`, `Accept-Language`,
+   `Accept-Encoding`, `Sec-Fetch-*`). O cliente HTTP tem que nascer com esses defaults,
+   e o adapter precisa tratar resposta comprimida.
+4. **A busca da Kabum devolve lixo de verdade.** Entre os 42 resultados de "rx 9070 xt"
+   vieram um processador Ryzen, uma fonte, um water cooler, uma RTX 5070 Ti e um
+   **controle remoto de ar-condicionado** (modelo FBG-**9070**). O `match_regex` da
+   seção 5 não é excesso de zelo — sem ele, o bot alertaria sobre um controle remoto de
+   R$ 26,99 como "queda de preço de GPU".
+5. **Pichau parece paginar em 36 itens.** Nas duas buscas vieram exatamente 36 brutos, e
+   para a RTX 5070 Ti só 2 casaram o regex, contra 41 da Terabyte. Cobertura possivelmente
+   incompleta — **resolver na Fase 1** com paginação ou busca por categoria.
 
 ### 4.1 Cobertura da Amazon — análise e decisão
 
@@ -167,7 +199,10 @@ questão se encerra.
 
 ### Boas práticas de coleta (todas as lojas)
 
-- `User-Agent` realista e consistente; `Accept-Language: pt-BR`.
+- **Conjunto completo de cabeçalhos de navegador, não só `User-Agent`.** Pichau e
+  Terabyte respondem **403** sem `Accept`, `Accept-Language`, `Accept-Encoding` e
+  `Sec-Fetch-*` coerentes — confirmado no spike. O cliente HTTP deve nascer com esses
+  defaults e tratar resposta gzip/deflate.
 - Delay aleatório de 2–6s entre requisições e jitter no horário da coleta.
 - Retry com backoff exponencial (3 tentativas) apenas em erro de rede/5xx.
 - Timeout de 20s por requisição.
@@ -359,6 +394,28 @@ e a atual tem available == true.
 
 Cooldown de 24h por produto. Se o produto voltar ao estoque **e** com mínimo
 histórico, envia um único alerta combinado.
+
+### 7.1 De onde vem `available` — uma armadilha por loja
+
+O spike da Fase 0 mostrou que **não existe um campo universal de disponibilidade**.
+Cada adapter é responsável por produzir um booleano confiável, e a regra é diferente
+em cada loja:
+
+| Loja | Sinal correto | Armadilha |
+|---|---|---|
+| Kabum | `quantity > 0` | O campo `available` vem `true` em **100%** dos itens (42/42), inclusive esgotados. **Nunca usar.** |
+| Pichau | `stock_status == "IN_STOCK"` | Confiável. |
+| Terabyte | `data-tss-estoque == "1"` | Confiável: bate 254/254 com o texto "Esgotado"/"Indisponível" na página. |
+
+Vale registrar de onde veio a regra da Terabyte: a observação de que **loja
+indisponível sempre exibe "Esgotado" ou "Indisponível" na página** se confirmou lá com
+correlação perfeita. Na Kabum ela não se aplica porque a página de busca é montada no
+cliente a partir do JSON — o HTML servido não contém nenhum desses textos, e o `quantity`
+é o único sinal disponível.
+
+Consequência para os testes: as fixtures da seção 13 precisam incluir, por loja, **um
+item disponível e um esgotado**. É o único jeito de detectar em regressão que o sinal de
+estoque inverteu ou parou de ser preenchido.
 
 ### Digest
 
@@ -710,6 +767,8 @@ silêncio.**
 Pricelookup/
 ├── SPEC.md
 ├── README.md
+├── spikes/
+│   └── fase0_probe.py        # Fase 0 — descoberta, não é código de produção
 ├── Dockerfile
 ├── compose.yaml
 ├── config.yaml
@@ -747,7 +806,7 @@ Pricelookup/
 
 | Fase | Entrega | Definição de pronto |
 |---|---|---|
-| **0 — Spike** | Validar como extrair preço de cada loja | Script descartável que imprime título + preço à vista das 3 lojas, confirmando `__NEXT_DATA__` (Kabum), GraphQL (Pichau) e seletores (Terabyte) |
+| **0 — Spike** ✅ | Validar como extrair preço de cada loja | **Concluída em 2026-09-11.** `spikes/fase0_probe.py` imprime título + preço à vista das 3 lojas com 0 falhas. Resultados e correções na seção 4 |
 | **1 — Núcleo** | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | `--run-once` popula o SQLite com ofertas reais das 3 lojas |
 | **2 — Alertas** | Motor de alertas + guardrails + notificador com fan-out de destinos | Digest com dados reais chega **no grupo**; alerta operacional chega no privado |
 | **3 — Container** | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | Roda 48h no servidor sem intervenção |
@@ -791,7 +850,10 @@ viraram decisões na seção 17. Não há bloqueio para começar a Fase 0.
 - ✅ Alertas: novo mínimo histórico **e** volta ao estoque. Sem alerta por % de queda
   nem preço-alvo.
 - ✅ Preço de referência: à vista (PIX/boleto); parcelado guardado como secundário.
-- ✅ Stack: Python 3.12, SQLite, sem navegador headless no v1.
+- ✅ Stack: Python 3.12, SQLite, sem navegador headless no v1. **Nenhuma das três lojas
+  do v1 exige JavaScript** — confirmado no spike.
+- ✅ Disponibilidade é resolvida por adapter, não por campo universal. Na Kabum, via
+  `quantity`; o campo `available` é inútil (seção 7.1).
 - ✅ Deploy: container único com volume para o banco.
 - ✅ Esquema de dados agnóstico de categoria **já na Fase 1**, para evitar migração
   quando o PS5 entrar.
