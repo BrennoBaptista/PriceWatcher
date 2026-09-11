@@ -13,8 +13,9 @@ Roda como um único container Docker num servidor pessoal.
 ## Status
 
 ✅ **Fase 0** — extração das três lojas validada contra os sites reais.
-✅ **Fase 1** — núcleo funcionando: coleta real persistida em SQLite, 34 testes offline.
-🚧 **Fase 2 — alertas e Telegram** é o próximo passo.
+✅ **Fase 1** — núcleo: coleta real persistida em SQLite.
+✅ **Fase 2** — alertas e Telegram: digest único por rodada, com guardrails. 63 testes.
+🚧 **Fase 3 — container e agendador** é o próximo passo.
 
 O planejamento completo está em **[SPEC.md](SPEC.md)**.
 
@@ -24,10 +25,22 @@ O planejamento completo está em **[SPEC.md](SPEC.md)**.
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"
 ```
 
-Uma coleta, gravando em `data/prices.db`:
+Uma coleta, gravando em `data/prices.db` e notificando:
 
 ```bash
 .venv/Scripts/python -m pricewatcher --run-once
+```
+
+Sem enviar nada, só mostrando o que seria enviado:
+
+```bash
+.venv/Scripts/python -m pricewatcher --run-once --dry-run
+```
+
+Testar só os canais do Telegram:
+
+```bash
+.venv/Scripts/python -m pricewatcher --test-notify
 ```
 
 Os testes não tocam a rede — rodam contra respostas reais congeladas em

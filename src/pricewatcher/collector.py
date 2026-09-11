@@ -34,6 +34,8 @@ class ResumoColeta:
     mantidas: int = 0
     falhas: list[str] = field(default_factory=list)
     vazias: list[str] = field(default_factory=list)
+    produtos: set[int] = field(default_factory=set)
+    """Ids tocados nesta coleta -- e sobre eles que o motor de alertas roda."""
 
     @property
     def ok(self) -> bool:
@@ -83,7 +85,7 @@ def _coleta_uma(
 
     res = normaliza(brutas, target)
     for oferta in res.ofertas:
-        repo.registra(oferta, run_id)
+        resumo.produtos.add(repo.registra(oferta, run_id))
     repo.commit()
 
     resumo.encontradas += len(brutas)

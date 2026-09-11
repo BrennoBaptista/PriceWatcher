@@ -190,6 +190,59 @@ class Repo:
     def commit(self) -> None:
         self.con.commit()
 
+    # -------------------------------------------------------------- alertas
+    def produto(self, produto_id: int) -> sqlite3.Row:
+        return self.con.execute(
+            "SELECT * FROM product WHERE id=?", (produto_id,)
+        ).fetchone()
+
+    def historico(self, produto_id: int) -> list[sqlite3.Row]:
+        """Observacoes em ordem cronologica. A ultima e a coleta atual."""
+        return self.con.execute(
+            "SELECT price_cash, available, observed_at FROM price_point "
+            "WHERE product_id=? ORDER BY observed_at ASC, id ASC",
+            (produto_id,),
+        ).fetchall()
+
+    def ultimo_alerta(self, produto_id: int, kind: str) -> str | None:
+        linha = self.con.execute(
+            "SELECT sent_at FROM alert WHERE product_id=? AND kind=? "
+            "ORDER BY sent_at DESC LIMIT 1",
+            (produto_id, kind),
+        ).fetchone()
+        return linha[0] if linha else None
+
+    def registra_alerta(
+        self,
+        produto_id: int,
+        kind: str,
+        price_cash: int | None,
+        previous_best: int | None,
+        entregue: bool,
+    ) -> None:
+        self.con.execute(
+            "INSERT INTO alert (product_id, kind, price_cash, previous_best, "
+            "sent_at, delivered) VALUES (?,?,?,?,?,?)",
+            (produto_id, kind, price_cash, previous_best, agora(), int(entregue)),
+        )
+        self.con.commit()
+
+    def falhas_consecutivas(self, minimo: int = 2) -> list[tuple[str, str, str]]:
+        """(loja, alvo, erro) que falharam nas N ultimas rodadas seguidas."""
+        pares = self.con.execute(
+            "SELECT DISTINCT store, target_id FROM collection_run"
+        ).fetchall()
+        ruins = []
+        for store, target_id in pares:
+            ult = self.con.execute(
+                "SELECT status, error FROM collection_run WHERE store=? AND target_id=? "
+                "ORDER BY started_at DESC, id DESC LIMIT ?",
+                (store, target_id, minimo),
+            ).fetchall()
+            if len(ult) == minimo and all(r["status"] == RunStatus.FAILED for r in ult):
+                ruins.append((store, target_id, ult[0]["error"] or "sem detalhe"))
+        return ruins
+
     # -------------------------------------------------------------- leitura
     def resumo(self) -> list[sqlite3.Row]:
         return self.con.execute(

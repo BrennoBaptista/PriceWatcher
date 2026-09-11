@@ -866,6 +866,7 @@ Pricelookup/
 │   ├── alerts.py             # regras de mínimo histórico e volta ao estoque
 │   └── notify/
 │       ├── telegram.py       # sendMessage em UTF-8 explícito (ver seção 8)
+│       ├── render.py         # montagem da mensagem, separada do transporte
 │       └── router.py         # fan-out por destino, com filtro de categoria
 └── tests/
     ├── fixtures/
@@ -880,7 +881,7 @@ Pricelookup/
 |---|---|---|
 | **0 — Spike** ✅ | Validar como extrair preço de cada loja | **Concluída em 2026-09-11.** `spikes/fase0_probe.py` imprime título + preço à vista das 3 lojas com 0 falhas. Resultados e correções na seção 4 |
 | **1 — Núcleo** ✅ | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | **Concluída em 2026-09-11.** `--run-once` coletou 843 ofertas reais → 107 mantidas, persistidas em SQLite; 34 testes offline passando |
-| **2 — Alertas** | Motor de alertas + guardrails + notificador com fan-out de destinos | Digest com dados reais chega **no grupo**; alerta operacional chega no privado |
+| **2 — Alertas** ✅ | Motor de alertas + guardrails + notificador com fan-out de destinos | **Concluída em 2026-09-11.** Motor com os 4 guardrails, digest único por rodada, roteamento por destino; 63 testes offline |
 | **3 — Container** | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | Roda 48h no servidor sem intervenção |
 | **4 — Extras** | Experimento Zoom/Buscapé (seção 4.1) · comandos `/precos` e `/status` no bot · gráfico de histórico · export CSV | Sob demanda. O experimento do agregador só vira adapter definitivo se trouxer oferta melhor que as 3 lojas diretas |
 | **5 — PS5** | Spike das plataformas · adapters do varejo generalista · variantes e bundles · regra 1P | Ver seção 18. **Independente da Fase 4** — pode vir antes |
