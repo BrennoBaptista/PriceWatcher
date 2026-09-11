@@ -958,7 +958,7 @@ Pricelookup/
 | **0 — Spike** ✅ | Validar como extrair preço de cada loja | **Concluída em 2026-09-11.** `spikes/fase0_probe.py` imprime título + preço à vista das 3 lojas com 0 falhas. Resultados e correções na seção 4 |
 | **1 — Núcleo** ✅ | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | **Concluída em 2026-09-11.** `--run-once` coletou 843 ofertas reais → 107 mantidas, persistidas em SQLite; 34 testes offline passando |
 | **2 — Alertas** ✅ | Motor de alertas + guardrails + notificador com fan-out de destinos | **Concluída em 2026-09-11.** Motor com os 4 guardrails, digest único por rodada, roteamento por destino; 63 testes offline |
-| **3 — Container** 🟡 | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | **Imagem construída e `--selftest` aprovado no servidor em 2026-09-11.** Falta subir o agendador e completar 48h sem intervenção |
+| **3 — Container** 🟡 | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | **Em produção desde 2026-09-11.** Build, `--selftest`, `--test-notify` e `--run-once` aprovados no servidor (844 ofertas → 106 mantidas). Fecha ao completar 48h sem intervenção |
 | **4 — Extras** | Experimento Zoom/Buscapé (seção 4.1) · comandos `/precos` e `/status` no bot · gráfico de histórico · export CSV | Sob demanda. O experimento do agregador só vira adapter definitivo se trouxer oferta melhor que as 3 lojas diretas |
 | **5 — PS5** | Spike das plataformas · adapters do varejo generalista · variantes e bundles · regra 1P | Ver seção 18. **Independente da Fase 4** — pode vir antes |
 
