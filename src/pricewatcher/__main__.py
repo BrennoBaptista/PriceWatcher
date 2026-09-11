@@ -69,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--db", type=Path, default=None)
     p.add_argument("--dry-run", action="store_true",
                    help="avalia e mostra a mensagem, sem enviar")
+    p.add_argument("--marcar-teste", action="store_true",
+                   help="forca a marca de TESTE MANUAL na mensagem")
     p.add_argument("--run-on-start", action="store_true",
                    help="com --serve, coleta uma vez ao subir")
     p.add_argument("--max-age-hours", type=int, default=24,
@@ -150,6 +152,16 @@ def _serve(cfg, caminho_db: Path, args) -> int:
 
 
 # ------------------------------------------------------------- notificacao
+def e_execucao_manual() -> bool:
+    """True quando NAO estamos rodando dentro do container.
+
+    O Dockerfile define PRICEWATCHER_ORIGEM=container. Preferimos detectar em
+    vez de depender de alguem lembrar da flag: sem a marca, um teste manual
+    fica indistinguivel de uma oportunidade real para quem le o grupo.
+    """
+    return os.environ.get("PRICEWATCHER_ORIGEM") != "container"
+
+
 def _transporte():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -157,7 +169,7 @@ def _transporte():
     return TelegramNotifier(token)
 
 
-def _notifica(cfg, repo: Repo, resumo, alertas) -> None:
+def _notifica(cfg, repo: Repo, resumo, alertas, teste: bool | None = None) -> None:
     try:
         router = Router(cfg.notify, _transporte())
     except Exception as e:  # noqa: BLE001
@@ -165,7 +177,8 @@ def _notifica(cfg, repo: Repo, resumo, alertas) -> None:
         return
 
     if alertas:
-        entregues = router.envia_precos(alertas, agora_local())
+        marca = e_execucao_manual() if teste is None else teste
+        entregues = router.envia_precos(alertas, agora_local(), teste=marca)
         houve_entrega = any(entregues.values())
         for a in alertas:
             for kind in a.kinds:

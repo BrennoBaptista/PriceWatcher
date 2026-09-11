@@ -36,7 +36,10 @@ class Router:
         self._transporte = transporte
 
     def envia_precos(
-        self, alertas: list[Alerta], quando: datetime | None = None
+        self,
+        alertas: list[Alerta],
+        quando: datetime | None = None,
+        teste: bool = False,
     ) -> dict[str, bool]:
         if not alertas:
             return {}
@@ -48,7 +51,7 @@ class Router:
             ]
             if not desejados:
                 continue
-            texto = render.digest(desejados, quando)
+            texto = render.digest(desejados, quando, teste=teste)
             entregues[dest.id] = self._entrega(dest, texto)
         return entregues
 

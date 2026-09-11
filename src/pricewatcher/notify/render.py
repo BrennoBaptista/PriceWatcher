@@ -46,8 +46,13 @@ def _bloco(a: Alerta) -> str:
     titulo = html.escape(a.titulo)
     linhas.append(titulo if len(titulo) <= 90 else titulo[:89] + "…")
 
-    if a.is_bundle and a.bundle_note:
-        linhas.append(f"🎁 bundle: {html.escape(a.bundle_note)}")
+    if a.is_bundle:
+        # A marca sai mesmo sem conteudo extraido. Quando o combo esta no fim do
+        # titulo ("... com 2 Jogos") nao sobra texto para a nota, e sem esta
+        # linha o bundle ficaria indistinguivel de um console avulso -- que e
+        # exatamente a confusao que a secao 5 existe para evitar.
+        nota = f": {html.escape(a.bundle_note)}" if a.bundle_note else ""
+        linhas.append(f"🎁 <b>bundle</b>{nota}")
 
     preco = f"<b>{brl(a.preco)}</b> à vista"
     if a.novo_minimo and a.melhor_anterior:
@@ -60,13 +65,30 @@ def _bloco(a: Alerta) -> str:
     return "\n".join(linhas)
 
 
-def digest(alertas: list[Alerta], quando: datetime | None = None) -> str:
-    """Uma mensagem por rodada, nunca uma por alerta (secao 7)."""
+AVISO_TESTE = (
+    "🧪 <b>TESTE MANUAL</b> — mensagem disparada à mão, fora do container.\n"
+    "<i>Não é alerta automático. Os preços abaixo são reais, mas a queda foi "
+    "simulada para exercitar o caminho completo.</i>"
+)
+
+
+def digest(
+    alertas: list[Alerta],
+    quando: datetime | None = None,
+    teste: bool = False,
+) -> str:
+    """Uma mensagem por rodada, nunca uma por alerta (secao 7).
+
+    `teste=True` marca a mensagem como disparo manual. Isso importa porque o
+    grupo tem outras pessoas: sem a marca, um teste e indistinguivel de uma
+    oportunidade de compra de verdade.
+    """
     quando = quando or agora_local()
     n = len(alertas)
     palavra = "oportunidade" if n == 1 else "oportunidades"
     cabecalho = f"🟢 <b>{n} {palavra}</b> — {quando:%d/%m %H:%M}"
-    return "\n\n".join([cabecalho, *(_bloco(a) for a in alertas)])
+    partes = [AVISO_TESTE, cabecalho] if teste else [cabecalho]
+    return "\n\n".join([*partes, *(_bloco(a) for a in alertas)])
 
 
 def operacional(falhas: list[tuple[str, str, str]], vazios: list[str]) -> str:
