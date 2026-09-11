@@ -88,6 +88,31 @@ else
 fi
 [ -f config.yaml ] && ok "config.yaml presente" || { erro "config.yaml ausente"; FALHAS=$((FALHAS+1)); }
 
+titulo "4b. Diretorio de dados"
+# O container roda como uid 10001 (nao-root). O bind mount ./data:/data
+# substitui o diretorio da imagem pelo do host -- e o Docker cria esse
+# diretorio como root quando ele nao existe. Resultado: o processo nao
+# consegue escrever o SQLite. Por isso o dono precisa ser ajustado aqui.
+UID_CONTAINER=10001
+mkdir -p data 2>/dev/null
+if [ ! -d data ]; then
+    erro "nao foi possivel criar ./data"
+    FALHAS=$((FALHAS+1))
+else
+    DONO=$(stat -c '%u' data)
+    if [ "$DONO" = "$UID_CONTAINER" ]; then
+        ok "./data pertence ao uid $UID_CONTAINER (o do container)"
+    else
+        aviso "./data pertence ao uid $DONO; o container roda como $UID_CONTAINER"
+        if sudo -n true 2>/dev/null; then
+            sudo chown -R "$UID_CONTAINER:$UID_CONTAINER" data && ok "dono corrigido"
+        else
+            erro "rode:  sudo chown -R $UID_CONTAINER:$UID_CONTAINER data"
+            FALHAS=$((FALHAS+1))
+        fi
+    fi
+fi
+
 if [ "$FALHAS" -gt 0 ]; then
     titulo "Interrompido"
     erro "$FALHAS problema(s) antes do build. Resolva e rode de novo."

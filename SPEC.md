@@ -855,12 +855,20 @@ descobrir por silêncio de alertas dias depois.
 ```bash
 git clone https://github.com/BrennoBaptista/PriceWatcher.git && cd PriceWatcher
 cp .env.example .env    # preencher token e os dois chat_id
+mkdir -p data && sudo chown -R 10001:10001 data   # ver nota abaixo
 docker compose build
 docker compose run --rm pricewatcher --selftest     # 1. o ambiente aguenta?
 docker compose run --rm pricewatcher --test-notify  # 2. os canais respondem?
 docker compose run --rm pricewatcher --run-once     # 3. coleta de verdade
 docker compose up -d                                # 4. agendador no ar
 ```
+
+> **Por que o `chown`.** O container roda como uid **10001** (não-root), mas o bind
+> mount `./data:/data` substitui o diretório da imagem pelo do host — e o Docker cria
+> esse diretório como **root** quando ele não existe. O `chown` do Dockerfile é apagado
+> pela montagem, e o processo não consegue escrever o SQLite. O `deploy-check.sh` faz
+> isso automaticamente; aqui fica explícito porque o sintoma (`unable to open database
+> file`) não sugere permissão em nada.
 
 Se o passo 1 falhar ao carregar o `curl_cffi`, **pare**: o binário não roda naquele
 CPU e o plano B da seção 11.2 precisa entrar antes de qualquer outra coisa. O `curl`

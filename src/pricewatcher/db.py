@@ -12,6 +12,7 @@ O esquema e agnostico de categoria desde a primeira versao (secao 5 da SPEC):
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 from pathlib import Path
 
@@ -91,10 +92,54 @@ def agora() -> str:
     return agora_utc().isoformat(timespec="seconds")
 
 
+class PermissaoDoBanco(RuntimeError):
+    """Nao da para abrir o banco -- quase sempre e dono do diretorio, nao SQLite."""
+
+
+def _explica_falha(caminho: Path, erro: Exception) -> PermissaoDoBanco:
+    """Transforma 'unable to open database file' em algo acionavel.
+
+    Esse erro do SQLite nao diz nada sobre a causa real. No container ela e
+    quase sempre a mesma: o bind mount substitui o diretorio da imagem pelo do
+    host, que o Docker cria como root, e o processo roda como nao-root.
+    """
+    detalhes = [f"nao foi possivel abrir o banco em {caminho}: {erro}"]
+    try:
+        uid, gid = os.getuid(), os.getgid()  # type: ignore[attr-defined]
+        detalhes.append(f"processo roda como uid={uid} gid={gid}")
+    except AttributeError:
+        pass  # Windows nao tem getuid
+
+    pasta = caminho.parent
+    if pasta.exists():
+        try:
+            st = pasta.stat()
+            detalhes.append(
+                f"diretorio {pasta} pertence a uid={st.st_uid} gid={st.st_gid}, "
+                f"modo {oct(st.st_mode & 0o777)}"
+            )
+        except OSError:
+            pass
+        detalhes.append(
+            f"se estiver em container com bind mount, rode no host: "
+            f"sudo chown -R 10001:10001 ./data"
+        )
+    else:
+        detalhes.append(f"o diretorio {pasta} nao existe e nao pode ser criado")
+
+    return PermissaoDoBanco("\n  ".join(detalhes))
+
+
 class Repo:
     def __init__(self, caminho: Path) -> None:
-        caminho.parent.mkdir(parents=True, exist_ok=True)
-        self.con = sqlite3.connect(caminho)
+        try:
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise _explica_falha(caminho, e) from e
+        try:
+            self.con = sqlite3.connect(caminho)
+        except sqlite3.OperationalError as e:
+            raise _explica_falha(caminho, e) from e
         self.con.row_factory = sqlite3.Row
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.execute("PRAGMA foreign_keys=ON")
