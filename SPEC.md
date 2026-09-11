@@ -717,10 +717,23 @@ Dois detalhes que valem estar escritos:
 - `impersonate="firefox"` passa na Terabyte mas toma 403 na Pichau. O perfil padrão é
   o do Chrome.
 
-⚠️ **Risco aberto:** o `curl_cffi` embarca `libcurl-impersonate` compilado, e **não está
-verificado** que esse binário roda no Core 2 Duo do servidor (x86-64 baseline, sem
-SSE4.2/AVX — seção 12). Verificar no deploy da Fase 3. Plano B: chamar o `curl` do
-sistema por subprocess, que resolve o mesmo problema e existe em qualquer Debian.
+✅ **Risco encerrado em 2026-09-11, no servidor.** O `curl_cffi` 0.16.3 carregou e
+buscou as três lojas a partir do Core 2 Duo E7500 (x86-64 baseline, sem SSE4.2, POPCNT
+ou AVX). O `libcurl-impersonate` faz detecção de CPU em tempo de execução e não exige
+x86-64-v2. O plano B (chamar o `curl` do sistema por subprocess) **não foi necessário**
+e não será implementado — mas o `curl` continua na imagem, agora como ferramenta de
+diagnóstico dentro do container.
+
+Saída real do `--selftest` no servidor:
+
+```
+  python      : 3.12.14
+  plataforma  : Linux-6.8.0-137-generic-x86_64-with-glibc2.41
+  curl_cffi   : 0.16.3 carregou OK
+    kabum      OK (364 KB)
+    pichau     OK (1525 KB)
+    terabyte   OK (682 KB)
+```
 
 ### 11.1 Licenciamento — todo componente deve ser open source
 
@@ -853,9 +866,10 @@ Se o passo 1 falhar ao carregar o `curl_cffi`, **pare**: o binário não roda na
 CPU e o plano B da seção 11.2 precisa entrar antes de qualquer outra coisa. O `curl`
 do sistema já está instalado na imagem justamente para isso.
 
-⚠️ **Não verificado:** a imagem foi escrita mas **não construída** — a máquina de
-desenvolvimento não tem Docker. O primeiro `docker compose build` no servidor é
-também o primeiro teste do Dockerfile.
+✅ **Verificado em 2026-09-11:** a imagem construiu no servidor na primeira tentativa e
+o `--selftest` passou. O primeiro deploy falhou por outro motivo — `curl_cffi` não
+estava declarado no `pyproject.toml` (ver `tests/test_dependencias.py`), não por
+problema de Docker ou de CPU.
 
 ### Backup
 
@@ -936,7 +950,7 @@ Pricelookup/
 | **0 — Spike** ✅ | Validar como extrair preço de cada loja | **Concluída em 2026-09-11.** `spikes/fase0_probe.py` imprime título + preço à vista das 3 lojas com 0 falhas. Resultados e correções na seção 4 |
 | **1 — Núcleo** ✅ | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | **Concluída em 2026-09-11.** `--run-once` coletou 843 ofertas reais → 107 mantidas, persistidas em SQLite; 34 testes offline passando |
 | **2 — Alertas** ✅ | Motor de alertas + guardrails + notificador com fan-out de destinos | **Concluída em 2026-09-11.** Motor com os 4 guardrails, digest único por rodada, roteamento por destino; 63 testes offline |
-| **3 — Container** 🟡 | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | **Código pronto em 2026-09-11; deploy pendente.** Imagem e compose escritos mas **não construídos** — não há Docker na máquina de desenvolvimento. Fecha quando rodar 48h no servidor |
+| **3 — Container** 🟡 | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | **Imagem construída e `--selftest` aprovado no servidor em 2026-09-11.** Falta subir o agendador e completar 48h sem intervenção |
 | **4 — Extras** | Experimento Zoom/Buscapé (seção 4.1) · comandos `/precos` e `/status` no bot · gráfico de histórico · export CSV | Sob demanda. O experimento do agregador só vira adapter definitivo se trouxer oferta melhor que as 3 lojas diretas |
 | **5 — PS5** | Spike das plataformas · adapters do varejo generalista · variantes e bundles · regra 1P | Ver seção 18. **Independente da Fase 4** — pode vir antes |
 

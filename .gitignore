@@ -31,3 +31,6 @@ scratch/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Logs de diagnostico de deploy (gerados no servidor)
+deploy-check-*.log
