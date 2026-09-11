@@ -141,10 +141,11 @@ def _alertas(repo: Repo) -> None:
 
 
 def _agenda(cfg: AppConfig) -> None:
-    _cabecalho("Proximas coletas")
+    _cabecalho("Proximas coletas (estimadas)")
     from .scheduler import proximas_execucoes
 
     for nome, quando in proximas_execucoes(cfg.schedule):
         local = para_local(quando)
         print(f"  {nome:<16} {local:%d/%m %H:%M %Z}" if local else f"  {nome}: ?")
-    print(f"  (jitter de ate {cfg.schedule.jitter_minutes} min a cada disparo)")
+    print(f"  o jitter de ate {cfg.schedule.jitter_minutes} min e re-sorteado a cada")
+    print("  disparo, entao o horario real desliza dentro dessa janela")

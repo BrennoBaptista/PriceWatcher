@@ -147,7 +147,11 @@ def _serve(cfg, caminho_db: Path, args) -> int:
         tarefa()
 
     for nome, quando in proximas(sched):
-        log.info("proxima execucao de %r: %s", nome, quando)
+        # "estimada" de proposito: o jitter e re-sorteado a cada disparo, entao
+        # o horario real desliza dentro da janela. Dizer um horario exato aqui
+        # faz quem le o log achar que o agendador atrasou ou adiantou.
+        log.info("proxima execucao de %r: ~%s (jitter re-sorteado a cada disparo)",
+                 nome, quando)
 
     log.info("agendador no ar; Ctrl+C para sair")
     try:
