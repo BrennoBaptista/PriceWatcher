@@ -1,0 +1,89 @@
+# PriceWatcher -- configuracao de comportamento.
+# Segredos NAO ficam aqui: vem do .env via ${VARIAVEL}.
+
+schedule:
+  times: ["08:00", "20:00"]
+  jitter_minutes: 15
+
+http:
+  timeout_seconds: 20
+  delay_min_seconds: 2.0
+  delay_max_seconds: 6.0
+  retries: 3
+
+notify:
+  destinations:
+    - id: grupo
+      chat_id: ${TELEGRAM_GROUP_CHAT_ID}
+      kinds: [price]          # todos os alertas de preco: GPU e console
+    - id: brenno
+      chat_id: ${TELEGRAM_CHAT_ID}
+      kinds: [operational]    # so coletor quebrado; nao duplica alerta
+
+stores:
+  # v1 -- hardware
+  kabum:      { enabled: true,  categories: [gpu] }
+  pichau:     { enabled: true,  categories: [gpu] }
+  terabyte:   { enabled: true,  categories: [gpu] }
+  # Fase 5 -- varejo generalista (ver secao 18 da SPEC)
+  casasbahia: { enabled: false, categories: [console], platform: gcb }
+  ponto:      { enabled: false, categories: [console], platform: gcb }
+  magalu:     { enabled: false, categories: [console], platform: magalu }
+  americanas: { enabled: false, categories: [console], platform: americanas }
+  casaevideo: { enabled: false, categories: [console], platform: vtex,
+                base_url: "https://www.casaevideo.com.br" }
+
+targets:
+  - id: RX_9070_XT
+    category: gpu
+    label: "Radeon RX 9070 XT"
+    search_terms: ["rx 9070 xt"]
+    match_regex: '(?i)\b(rx\s*)?9070\s*xt\b'
+    # A busca das lojas devolve PC montado que apenas menciona a placa.
+    exclude:
+      # '^pc' pega "PC IA EXPERT", "PC Gamer", "PC Pro". A faixa de sanidade
+      # flagrou dois desses a R$ 21k e R$ 32k que a lista antiga deixava passar.
+      - '(?i)^\s*pc\b'
+      - '(?i)\b(pc\s*gamer|computador|notebook|desktop|kit\s*upgrade)\b'
+    sanity_price_range_brl: [2000, 15000]
+
+  - id: RTX_5070_TI
+    category: gpu
+    label: "GeForce RTX 5070 Ti"
+    search_terms: ["rtx 5070 ti"]
+    match_regex: '(?i)\b(rtx\s*)?5070\s*ti\b'
+    exclude:
+      # '^pc' pega "PC IA EXPERT", "PC Gamer", "PC Pro". A faixa de sanidade
+      # flagrou dois desses a R$ 21k e R$ 32k que a lista antiga deixava passar.
+      - '(?i)^\s*pc\b'
+      - '(?i)\b(pc\s*gamer|computador|notebook|desktop|kit\s*upgrade)\b'
+    sanity_price_range_brl: [2500, 18000]
+
+  # Fase 5 -- ignorado enquanto nenhuma loja de console estiver habilitada.
+  - id: PS5
+    category: console
+    label: "PlayStation 5"
+    search_terms: ["playstation 5", "console ps5"]
+    include_bundles: true
+    require_all: ['(?i)\b(playstation\s*5|ps5)\b']
+    require_any: ['(?i)\bconsole\b', '(?i)\b[12]\s*tb\b', '(?i)\b825\s*gb\b']
+    # Sem "controle" e sem "jogo" de proposito: bundle legitimo os contem.
+    exclude:
+      - '(?i)\b(capa|skin|suporte|headset|cart[ãa]o|psn|gift\s*card|pel[íi]cula|adesivo)\b'
+    # Ordem importa: primeiro match vence. 'Pro' antes de 'Digital'.
+    variants:
+      - { key: PS5_PRO,          match_regex: '(?i)\bpro\b' }
+      - { key: PS5_SLIM_DIGITAL, match_regex: '(?i)\bdigital\b' }
+      - { key: PS5_SLIM_DISC,    default: true }
+    sanity_price_range_brl: [2000, 9000]
+
+alerts:
+  new_low:
+    enabled: true
+    min_observations: 3
+    min_drop_percent: 1.0
+    min_drop_brl: 100
+    cooldown_hours: 12
+  back_in_stock:
+    enabled: true
+    cooldown_hours: 24

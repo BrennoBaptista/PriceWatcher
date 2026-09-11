@@ -108,7 +108,7 @@ Cada loja é uma classe que implementa a mesma interface:
 ```python
 class StoreAdapter(Protocol):
     name: str
-    def fetch(self, target: GpuTarget) -> list[RawOffer]: ...
+    def fetch(self, target: Target, fetcher: Fetcher) -> list[RawOffer]: ...
 ```
 
 Uma loja mudar o HTML **não pode** derrubar a coleta das outras. Falha de um adapter
@@ -148,18 +148,25 @@ FALHAS: 0
 2. **O campo `available` da Kabum é inútil.** Ele vem `true` em **42 de 42** itens,
    incluindo produtos claramente esgotados. Usar esse campo quebraria o alerta de volta
    ao estoque de forma silenciosa. O sinal correto é `quantity > 0`. Ver seção 7.1.
-3. **Sem cabeçalhos de navegador, Pichau e Terabyte devolvem 403.** `User-Agent`
-   sozinho não basta: o conjunto precisa ser coerente (`Accept`, `Accept-Language`,
-   `Accept-Encoding`, `Sec-Fetch-*`). O cliente HTTP tem que nascer com esses defaults,
-   e o adapter precisa tratar resposta comprimida.
+3. **Pichau e Terabyte devolvem 403 para cliente Python.** No spike isso parecia
+   questão de cabeçalho, e ajustá-los bastou naquele dia. **Era conclusão errada:** a
+   Fase 1 mostrou que o bloqueio é por *fingerprint de TLS* e voltou a acontecer mesmo
+   com os cabeçalhos completos. Ver **seção 11.2** — é o motivo de o cliente HTTP ser
+   `curl_cffi` e não `httpx`.
 4. **A busca da Kabum devolve lixo de verdade.** Entre os 42 resultados de "rx 9070 xt"
    vieram um processador Ryzen, uma fonte, um water cooler, uma RTX 5070 Ti e um
    **controle remoto de ar-condicionado** (modelo FBG-**9070**). O `match_regex` da
    seção 5 não é excesso de zelo — sem ele, o bot alertaria sobre um controle remoto de
    R$ 26,99 como "queda de preço de GPU".
-5. **Pichau parece paginar em 36 itens.** Nas duas buscas vieram exatamente 36 brutos, e
-   para a RTX 5070 Ti só 2 casaram o regex, contra 41 da Terabyte. Cobertura possivelmente
-   incompleta — **resolver na Fase 1** com paginação ou busca por categoria.
+5. ~~Pichau parece paginar em 36 itens.~~ **Resolvido na Fase 1, e a causa era outra.**
+   O payload traz `total_count` e `page_info.total_pages`: a busca por "rtx 5070 ti"
+   devolve **2054 resultados em 58 páginas**, e a maior parte é PC montado que apenas
+   menciona a placa. O número baixo de itens casando não era paginação — era um **bug
+   meu no spike**: eu localizava o objeto JSON contando chaves na mão, e as descrições
+   de produto contêm HTML com `{` e `}` dentro de strings, o que descartava 34 dos 36
+   produtos em silêncio. Com `json.JSONDecoder().raw_decode`, que respeita strings,
+   a extração fica completa. A paginação existe (`&page=N`) e é usada com parada
+   antecipada, já que os itens relevantes ficam nas primeiras páginas.
 
 ### 4.1 Cobertura da Amazon — análise e decisão
 
@@ -662,7 +669,7 @@ no spike — ver seção 18.
 | Camada | Escolha | Justificativa |
 |---|---|---|
 | Linguagem | Python 3.12 | Ecossistema de scraping maduro; performance não é gargalo aqui |
-| HTTP | `httpx` | HTTP/2, timeouts sensatos, API limpa |
+| HTTP | `curl_cffi` | **Obrigatório, não preferência.** Pichau e Terabyte bloqueiam por fingerprint de TLS — ver 11.2 |
 | Parsing HTML | `selectolax` | Bem mais rápido e leve que BeautifulSoup para o mesmo trabalho |
 | Agendamento | `APScheduler` | Cron interno, sem depender do host |
 | Banco | SQLite (`sqlite3` stdlib) | Um único usuário, escritas raras. Postgres seria overkill |
@@ -670,6 +677,69 @@ no spike — ver seção 18.
 | Config | `PyYAML` + `pydantic-settings` | Config declarativa validada no boot |
 | Telegram | Bot API via `httpx` | Framework completo seria peso morto |
 | Testes | `pytest` + fixtures de HTML salvo | Ver seção 13 |
+
+### 11.2 Por que `curl_cffi` e não `httpx`
+
+Descoberto na Fase 1, depois que a coleta real falhou onde o spike tinha passado.
+
+Pichau e Terabyte ficam atrás de um WAF que faz **fingerprint de TLS (JA3/JA4)**. O
+handshake do módulo `ssl` do Python é reconhecível, e nenhuma combinação de cabeçalho
+resolve. Medições:
+
+| Cliente | Kabum | Pichau | Terabyte |
+|---|---|---|---|
+| `httpx` HTTP/1.1 | 200 | **403** | **403** |
+| `httpx` HTTP/2 | 200 | **403** | **403** |
+| `httpx` + cipher suite do Chrome | 200 | **403** | **403** |
+| `urllib` (o que o spike usou) | 200 | **403** | **403** |
+| `curl` do sistema | 200 | 200 | 200 |
+| `curl_cffi` com `impersonate="chrome"` | 200 | 200 | 200 |
+
+Dois detalhes que valem estar escritos:
+
+- **Ajustar `SSLContext` não é suficiente.** O WAF olha ordem de extensões e GREASE,
+  que o `ssl` do Python não produz. Testei; continua 403.
+- **O spike passou e a Fase 1 falhou com o mesmo código.** O `urllib` funcionou no
+  primeiro dia e passou a tomar 403 depois de algumas dezenas de requisições. Ou seja,
+  o bloqueio **escala com o histórico do fingerprint** — um teste que passa hoje não
+  prova que o cliente está adequado. Foi exatamente o tipo de armadilha que a seção 13
+  existe para pegar.
+- `impersonate="firefox"` passa na Terabyte mas toma 403 na Pichau. O perfil padrão é
+  o do Chrome.
+
+⚠️ **Risco aberto:** o `curl_cffi` embarca `libcurl-impersonate` compilado, e **não está
+verificado** que esse binário roda no Core 2 Duo do servidor (x86-64 baseline, sem
+SSE4.2/AVX — seção 12). Verificar no deploy da Fase 3. Plano B: chamar o `curl` do
+sistema por subprocess, que resolve o mesmo problema e existe em qualquer Debian.
+
+### 11.1 Licenciamento — todo componente deve ser open source
+
+Requisito do projeto. Vale para dependências, banco, imagem base e runtime. Nada de
+biblioteca proprietária, serviço pago com SDK fechado ou componente de licença restritiva.
+
+| Componente | Licença |
+|---|---|
+| Python | PSF License |
+| curl_cffi | MIT (empacota libcurl-impersonate, licença curl) |
+| cffi · pycparser | MIT-0 · BSD-3-Clause |
+| certifi | MPL-2.0 |
+| selectolax | MIT (empacota lexbor, Apache-2.0) |
+| pydantic · pydantic-settings | MIT |
+| PyYAML | MIT |
+| APScheduler | MIT |
+| pytest | MIT |
+| SQLite | Domínio público |
+| Debian (`python:3.12-slim`) | Livre (DFSG) |
+| Docker Engine | Apache-2.0 |
+
+Verificado com os metadados dos pacotes instalados, não por memória.
+
+**Uma ressalva honesta sobre o Telegram.** Os aplicativos cliente do Telegram são open
+source e a Bot API é aberta, documentada e gratuita — mas **o servidor deles não é**.
+Não estamos embarcando nada fechado: é um serviço externo, acessado por HTTP, e o
+notificador fica isolado atrás de uma interface própria (`notify/`). Se um dia isso
+incomodar, trocar por ntfy, Matrix ou Gotify — todos open source e self-hostáveis — é
+trocar um módulo, não reescrever o sistema.
 
 **Sem navegador headless.** Playwright dobraria o tamanho da imagem e o consumo de RAM
 — e, no CPU do servidor de destino (Core 2 Duo, sem SSE4.2/AVX), provavelmente nem
@@ -774,10 +844,12 @@ Pricelookup/
 ├── config.yaml
 ├── .env.example
 ├── pyproject.toml
-├── src/gpu_watcher/
+├── src/pricewatcher/
 │   ├── __main__.py           # entrypoint: --run-once | --serve
 │   ├── config.py             # carga e validação da config
-│   ├── models.py             # RawOffer, NormalizedOffer, GpuTarget (pydantic)
+│   ├── models.py             # RawOffer, NormalizedOffer, Target (pydantic)
+│   ├── http.py               # Fetcher com curl_cffi — ver 11.2
+│   ├── collector.py          # orquestrador; isola falha por loja
 │   ├── scheduler.py
 │   ├── stores/
 │   │   ├── base.py           # StoreAdapter, HTTP client compartilhado
@@ -807,7 +879,7 @@ Pricelookup/
 | Fase | Entrega | Definição de pronto |
 |---|---|---|
 | **0 — Spike** ✅ | Validar como extrair preço de cada loja | **Concluída em 2026-09-11.** `spikes/fase0_probe.py` imprime título + preço à vista das 3 lojas com 0 falhas. Resultados e correções na seção 4 |
-| **1 — Núcleo** | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | `--run-once` popula o SQLite com ofertas reais das 3 lojas |
+| **1 — Núcleo** ✅ | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | **Concluída em 2026-09-11.** `--run-once` coletou 843 ofertas reais → 107 mantidas, persistidas em SQLite; 34 testes offline passando |
 | **2 — Alertas** | Motor de alertas + guardrails + notificador com fan-out de destinos | Digest com dados reais chega **no grupo**; alerta operacional chega no privado |
 | **3 — Container** | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | Roda 48h no servidor sem intervenção |
 | **4 — Extras** | Experimento Zoom/Buscapé (seção 4.1) · comandos `/precos` e `/status` no bot · gráfico de histórico · export CSV | Sob demanda. O experimento do agregador só vira adapter definitivo se trouxer oferta melhor que as 3 lojas diretas |

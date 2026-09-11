@@ -12,14 +12,29 @@ Roda como um único container Docker num servidor pessoal.
 
 ## Status
 
-✅ **Fase 0 concluída** — a extração das três lojas está validada contra os sites reais.
-🚧 **Fase 1 — núcleo** é o próximo passo. Ainda sem código de aplicação.
+✅ **Fase 0** — extração das três lojas validada contra os sites reais.
+✅ **Fase 1** — núcleo funcionando: coleta real persistida em SQLite, 34 testes offline.
+🚧 **Fase 2 — alertas e Telegram** é o próximo passo.
 
-O planejamento completo está em **[SPEC.md](SPEC.md)**; os resultados do spike, na
-seção 4.
+O planejamento completo está em **[SPEC.md](SPEC.md)**.
+
+## Rodando
 
 ```bash
-python spikes/fase0_probe.py
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"
+```
+
+Uma coleta, gravando em `data/prices.db`:
+
+```bash
+.venv/Scripts/python -m pricewatcher --run-once
+```
+
+Os testes não tocam a rede — rodam contra respostas reais congeladas em
+`tests/fixtures/`:
+
+```bash
+.venv/Scripts/python -m pytest -q
 ```
 
 ## Como vai funcionar
