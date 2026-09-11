@@ -361,7 +361,17 @@ CREATE TABLE alert (
 ```
 
 Preços são armazenados como **inteiro em centavos** — nunca float.
-Timestamps em ISO-8601 UTC.
+
+**Fuso: grava em UTC, mostra em Brasília.** O banco guarda ISO-8601 UTC porque
+comparação de histórico e cálculo de cooldown precisam de um relógio sem ambiguidade.
+Tudo que uma pessoa lê — log, mensagem no Telegram, relatório no terminal — é
+convertido para `America/Sao_Paulo` pelo módulo `tempo.py`, que é o único lugar que
+conhece fuso.
+
+Misturar os dois papéis produz aquele bug chato de *"o alerta diz 08:00 mas o log diz
+11:00"* — que chegou a acontecer aqui: o `TZ` com nome IANA não é entendido pelo
+runtime C do Windows e o logging caía para UTC em silêncio. Por isso o formatter de
+log carimba o offset explicitamente.
 
 ---
 

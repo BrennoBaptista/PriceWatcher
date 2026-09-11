@@ -6,7 +6,6 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from .alerts import avalia
@@ -16,6 +15,7 @@ from .db import Repo
 from .notify import render
 from .notify.router import Router
 from .notify.telegram import TelegramNotifier
+from .tempo import agora_local, fuso
 
 RAIZ = Path(__file__).resolve().parents[2]
 log = logging.getLogger("pricewatcher")
@@ -43,8 +43,6 @@ class _FormatterComFuso(logging.Formatter):
 
 
 def _log(nivel: str) -> None:
-    from .scheduler import fuso
-
     handler = logging.StreamHandler()
     handler.setFormatter(
         _FormatterComFuso("%(asctime)s %(levelname)-7s %(name)-28s %(message)s", fuso())
@@ -167,7 +165,7 @@ def _notifica(cfg, repo: Repo, resumo, alertas) -> None:
         return
 
     if alertas:
-        entregues = router.envia_precos(alertas, datetime.now())
+        entregues = router.envia_precos(alertas, agora_local())
         houve_entrega = any(entregues.values())
         for a in alertas:
             for kind in a.kinds:
@@ -199,7 +197,8 @@ def _teste_notificacao(cfg) -> int:
 def _relatorio(repo: Repo, resumo, alertas, caminho_db: Path) -> None:
     print()
     print("=" * 72)
-    print(f"COLETA CONCLUIDA -- {caminho_db}")
+    print(f"COLETA CONCLUIDA -- {agora_local():%d/%m/%Y %H:%M %Z}")
+    print(f"  banco: {caminho_db}")
     print("=" * 72)
     print(f"  ofertas encontradas : {resumo.encontradas}")
     print(f"  ofertas mantidas    : {resumo.mantidas}")

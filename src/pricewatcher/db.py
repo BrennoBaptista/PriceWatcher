@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import NormalizedOffer, RunStatus
+from .tempo import agora_utc
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +87,8 @@ CREATE INDEX IF NOT EXISTS idx_alert_produto ON alert(product_id, kind, sent_at 
 
 
 def agora() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """Carimbo para gravar: sempre UTC. Exibicao converte para Brasilia."""
+    return agora_utc().isoformat(timespec="seconds")
 
 
 class Repo:

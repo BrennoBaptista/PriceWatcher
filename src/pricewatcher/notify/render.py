@@ -10,6 +10,7 @@ import html
 from datetime import datetime
 
 from ..alerts import Alerta
+from ..tempo import agora_local
 
 LOJAS = {
     "kabum": "KaBuM!",
@@ -61,7 +62,7 @@ def _bloco(a: Alerta) -> str:
 
 def digest(alertas: list[Alerta], quando: datetime | None = None) -> str:
     """Uma mensagem por rodada, nunca uma por alerta (secao 7)."""
-    quando = quando or datetime.now()
+    quando = quando or agora_local()
     n = len(alertas)
     palavra = "oportunidade" if n == 1 else "oportunidades"
     cabecalho = f"🟢 <b>{n} {palavra}</b> — {quando:%d/%m %H:%M}"

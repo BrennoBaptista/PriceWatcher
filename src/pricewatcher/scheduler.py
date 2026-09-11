@@ -11,21 +11,16 @@ a loja e menos parecido com robo.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from typing import Callable
-from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from .models import ScheduleConfig
+from .tempo import fuso  # noqa: F401 -- reexportado por conveniencia
 
 log = logging.getLogger(__name__)
-
-
-def fuso() -> ZoneInfo:
-    return ZoneInfo(os.environ.get("TZ") or "America/Sao_Paulo")
 
 
 def monta(cfg: ScheduleConfig, tarefa: Callable[[], None]) -> BlockingScheduler:
