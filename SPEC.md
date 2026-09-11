@@ -168,6 +168,43 @@ FALHAS: 0
    a extração fica completa. A paginação existe (`&page=N`) e é usada com parada
    antecipada, já que os itens relevantes ficam nas primeiras páginas.
 
+### 4.2 Placar das lojas
+
+Situação consolidada em 2026-09-11. Verificado contra os sites reais, não presumido.
+
+**✅ Coletando (5)**
+
+| Loja | Categoria | Fonte | Preço à vista | Disponibilidade | Onde está |
+|---|---|---|---|---|---|
+| **Kabum** | GPU | `__NEXT_DATA__` (Next.js Pages) | `priceWithDiscount` | `quantity > 0` | `main`, em produção |
+| **Pichau** | GPU | payload RSC (App Router) | `pichau_prices.avista` | `stock_status` | `main`, em produção |
+| **Terabyteshop** | GPU | HTML + `data-tss-*` | `data-tss-price` | `data-tss-estoque` | `main`, em produção |
+| **Americanas** | console | API pública VTEX | `Installments` → PIX 1x | `IsAvailable` + qtd | `fase5-ps5` |
+| **Casa e Vídeo** | console | API pública VTEX | `Installments` → PIX 1x | `IsAvailable` + qtd | `fase5-ps5` |
+
+As duas últimas usam **o mesmo adapter**, parametrizado por domínio.
+
+**❌ Fora (4)**
+
+| Loja | Motivo | Reversível? |
+|---|---|---|
+| **Casas Bahia** | Akamai Bot Manager — exige execução de JS | Só com navegador headless, que o servidor não comporta |
+| **Ponto** | idem (mesmo grupo da Casas Bahia) | idem |
+| **Magalu** | Akamai Bot Manager | idem |
+| **Amazon.com.br** | Decisão de projeto: ToS restritivo e PA-API exige conta de Associados com vendas. Google Shopping foi avaliado como intermediário e rejeitado por qualidade de dado (seção 4.1) | Via agregador BR, na Fase 4 |
+
+**🔍 Não avaliada**
+
+| Loja | Situação |
+|---|---|
+| **Zoom / Buscapé** | Experimento previsto para a Fase 4. Cobriria indiretamente parte do que se perdeu acima |
+
+**Leitura honesta do placar.** Das 9 lojas consideradas, 5 coletam. As 4 que ficaram de
+fora caem em dois grupos: uma decisão consciente (Amazon) e um obstáculo técnico real
+(Akamai). Nenhuma foi perdida por limitação do nosso código — e vale notar que Casas
+Bahia e Ponto são a mesma empresa, então a perda efetiva são **dois grupos de varejo**,
+não três lojas independentes.
+
 ### 4.1 Cobertura da Amazon — análise e decisão
 
 A Amazon ficou **fora do v1**. Registro aqui o porquê e as alternativas avaliadas,
