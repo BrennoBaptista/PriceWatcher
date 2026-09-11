@@ -766,8 +766,23 @@ hardware. Loja que exigir JS é loja descartada.
 |---|---|
 | SO | Ubuntu 24.04.4 LTS · kernel 6.8.0-137-generic |
 | Arquitetura | x86_64 (**amd64**) |
-| CPU | Intel Core 2 Duo |
-| RAM | 8 GB |
+| CPU | Intel Core 2 Duo **E7500** @ 2.93 GHz, 2 núcleos |
+| RAM | 8 GB (7,7 GiB) |
+| Docker | 28.1.1 · Compose 2.35.1 |
+
+**Flags do CPU, verificadas no servidor em 2026-09-11:**
+
+| Instrução | E7500 |
+|---|---|
+| SSE3 (`pni`) · SSSE3 · SSE4.1 | ✅ presentes |
+| **SSE4.2 · POPCNT** | ❌ ausentes |
+| **AVX · AVX2** | ❌ ausentes |
+
+Confirmado: o processador é **x86-64 baseline (v1)**, não atinge x86-64-v2. O risco da
+seção 11.2 deixou de ser hipótese sobre o modelo e passou a ser fato sobre esta máquina.
+
+> ⚠️ Ao ler `/proc/cpuinfo`, lembre que o kernel chama SSE3 de **`pni`**. Procurar pela
+> string `sse3` dá falso negativo — aconteceu na primeira execução do script de deploy.
 
 Para a carga desta aplicação — meia dúzia de requisições HTTP duas vezes ao dia e um
 SQLite de poucos MB — esse hardware é **folgado**. Memória sobra e o processo fica

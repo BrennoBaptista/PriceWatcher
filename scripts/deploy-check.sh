@@ -36,8 +36,13 @@ titulo "2. CPU -- a pergunta que decide o deploy"
 CPU=$(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo)
 echo "  modelo : ${CPU:-desconhecido}"
 FLAGS=$(awk '/^flags/ {print; exit}' /proc/cpuinfo)
-for f in sse3 ssse3 sse4_1 sse4_2 popcnt avx avx2; do
-    if grep -qw "$f" <<<"$FLAGS"; then ok "$f presente"; else aviso "$f AUSENTE"; fi
+# Atencao ao nome: o kernel chama SSE3 de 'pni' (Prescott New Instructions).
+# Procurar por 'sse3' da falso negativo em CPU que tem SSE3.
+for par in "SSE3:pni" "SSSE3:ssse3" "SSE4.1:sse4_1" "SSE4.2:sse4_2" \
+           "POPCNT:popcnt" "AVX:avx" "AVX2:avx2"; do
+    rotulo=${par%%:*}; flag=${par##*:}
+    if grep -qw "$flag" <<<"$FLAGS"; then ok "$rotulo presente"
+    else aviso "$rotulo ausente"; fi
 done
 if grep -qw sse4_2 <<<"$FLAGS" && grep -qw popcnt <<<"$FLAGS"; then
     echo
