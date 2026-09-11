@@ -1,0 +1,33 @@
+# Segredos — NUNCA versionar
+.env
+.env.local
+*.secret
+
+# Banco de dados e dados coletados
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Fixtures baixadas em runtime (as versionadas ficam em tests/fixtures/)
+scratch/
+*.html.tmp
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
