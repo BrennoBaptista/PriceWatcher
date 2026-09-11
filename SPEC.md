@@ -871,6 +871,11 @@ silêncio.**
 
 1. **Fixtures de HTML real.** Para cada loja, um HTML/JSON de resposta salvo em
    `tests/fixtures/`. Testes de parsing rodam offline, sem rede.
+1b. **Manifesto x código.** `tests/test_dependencias.py` compara o que `src/` importa
+   com o que o `pyproject.toml` declara, nos dois sentidos. Existe por um erro real:
+   ao trocar `httpx` por `curl_cffi`, o venv local foi atualizado e o manifesto não —
+   tudo passava na máquina de desenvolvimento e o container subia sem o pacote. Venv
+   que já tem tudo instalado nunca pega isso; comparar código com manifesto pega.
 2. **Teste de contrato (manual).** `make check-live` bate nas lojas de verdade e falha
    se alguma retornar zero resultados — usado quando algo parece errado.
 3. **Detecção em produção.** Zero ofertas para uma GPU em todas as lojas → alerta
