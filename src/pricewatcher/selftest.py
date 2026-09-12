@@ -19,11 +19,11 @@ from .models import AppConfig
 
 log = logging.getLogger(__name__)
 
-SONDAS = {
-    "kabum": "https://www.kabum.com.br/busca/rx%209070%20xt",
-    "pichau": "https://www.pichau.com.br/search?q=rx+9070+xt&page=1",
-    "terabyte": "https://www.terabyteshop.com.br/busca?str=rx+9070+xt",
-}
+# Nao ha lista de URLs aqui de proposito. A primeira versao tinha, e as duas
+# lojas VTEX da Fase 5 ficaram fora dela: estavam habilitadas na config e o
+# autoteste as ignorava em silencio -- exatamente no comando que existe para
+# dizer se o ambiente coleta. Agora sondamos pelos adapters reais, que e
+# tambem um teste de parsing de graca.
 
 
 def executa(cfg: AppConfig, rede: bool = True) -> int:
@@ -51,28 +51,58 @@ def executa(cfg: AppConfig, rede: bool = True) -> int:
         print("\n  (sondagem de rede pulada)")
         return 0
 
-    # 2. O fingerprint de TLS passa nas lojas?
-    print("\n  Sondando as lojas habilitadas:")
+    # 2. Cada loja habilitada responde E o parser entende a resposta?
+    from .collector import monta_adapter
     from .http import Fetcher
 
-    habilitadas = [n for n, s in cfg.stores.items() if s.enabled and n in SONDAS]
+    pares = _pares_para_sondar(cfg)
+    if not pares:
+        print("\n  nenhuma loja habilitada com alvo correspondente na config")
+        return 1
+
+    print("\n  Sondando cada loja habilitada, pelo adapter real:")
     with Fetcher(timeout=cfg.http.timeout_seconds, retries=1) as f:
-        for nome in habilitadas:
+        for loja, alvo in pares:
+            adapter = monta_adapter(loja, cfg)
+            if adapter is None:
+                print(f"    {loja:11} FALHOU -- sem adapter para esta loja")
+                falhas += 1
+                continue
             try:
-                corpo = f.get(SONDAS[nome])
+                brutas = adapter.fetch(alvo, f)
             except Exception as e:  # noqa: BLE001
-                print(f"    {nome:10} FALHOU -- {type(e).__name__}: {str(e)[:60]}")
+                print(f"    {loja:11} FALHOU -- {type(e).__name__}: {str(e)[:56]}")
+                falhas += 1
+                continue
+            if not brutas:
+                print(f"    {loja:11} VAZIO -- respondeu, mas 0 ofertas ({alvo.id})")
                 falhas += 1
             else:
-                print(f"    {nome:10} OK ({len(corpo) // 1024} KB)")
+                print(f"    {loja:11} OK -- {len(brutas):>3} ofertas ({alvo.id})")
 
     print()
     if falhas:
-        print(f"  {falhas} loja(s) inacessivel(is). Ver secao 11.2 da SPEC.")
+        print(f"  {falhas} problema(s). Ver secoes 4 e 11.2 da SPEC.")
     else:
-        print("  Todas as lojas responderam. Ambiente apto.")
+        print("  Todas as lojas responderam e foram interpretadas. Ambiente apto.")
     print()
     return 1 if falhas else 0
+
+
+def _pares_para_sondar(cfg: AppConfig) -> list[tuple[str, object]]:
+    """Um (loja, alvo) por loja habilitada, respeitando a categoria."""
+    pares = []
+    for loja, ajustes in cfg.stores.items():
+        if not ajustes.enabled:
+            continue
+        alvo = next(
+            (t for t in cfg.targets if loja in cfg.stores_for(t.category)), None
+        )
+        if alvo is not None:
+            pares.append((loja, alvo))
+        else:
+            log.warning("loja %r habilitada mas sem alvo da categoria dela", loja)
+    return pares
 
 
 def healthcheck(caminho_db, max_horas: int = 24) -> int:

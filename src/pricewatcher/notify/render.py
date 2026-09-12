@@ -65,10 +65,12 @@ def _bloco(a: Alerta) -> str:
     return "\n".join(linhas)
 
 
+# A mensagem diz apenas de ONDE veio. Nao afirma nada sobre os dados: uma
+# execucao manual pode muito bem ter detectado queda de verdade, e o aviso
+# mentiria se garantisse que foi simulacao.
 AVISO_TESTE = (
-    "🧪 <b>TESTE MANUAL</b> — mensagem disparada à mão, fora do container.\n"
-    "<i>Não é alerta automático. Os preços abaixo são reais, mas a queda foi "
-    "simulada para exercitar o caminho completo.</i>"
+    "🧪 <b>EXECUÇÃO MANUAL</b> — disparada à mão, fora do agendador.\n"
+    "<i>Confira antes de agir: pode ser teste.</i>"
 )
 
 

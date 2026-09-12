@@ -98,16 +98,21 @@ class VtexAdapter:
                     f"{self.base_url}{CAMINHO}?ft={urllib.parse.quote(termo)}"
                     f"&_from={inicio}&_to={inicio + POR_PAGINA - 1}"
                 )
-                lote = self._pagina(url, fetcher)
+                lote, n_produtos = self._pagina(url, fetcher)
                 novas = [o for o in lote if o.store_sku not in vistos]
                 for o in novas:
                     vistos.add(o.store_sku)
                 ofertas.extend(novas)
-                if len(lote) < POR_PAGINA:
+                # Comparar com o numero de PRODUTOS, nao de ofertas: a janela
+                # `_from`/`_to` conta produtos, e um produto pode render varias
+                # ofertas (uma por item). Usar len(lote) encerraria a paginacao
+                # cedo quando alguns produtos nao gerassem oferta valida.
+                if n_produtos < POR_PAGINA:
                     break  # acabou o catalogo para este termo
         return ofertas
 
-    def _pagina(self, url: str, fetcher: Fetcher) -> list[RawOffer]:
+    def _pagina(self, url: str, fetcher: Fetcher) -> tuple[list[RawOffer], int]:
+        """Devolve as ofertas da pagina e quantos produtos a loja mandou."""
         import json
 
         corpo = fetcher.get(url)
@@ -130,7 +135,7 @@ class VtexAdapter:
                 oferta = self._do_item(p, item)
                 if oferta is not None:
                     ofertas.append(oferta)
-        return ofertas
+        return ofertas, len(produtos)
 
     def _do_item(self, produto: dict, item: dict) -> RawOffer | None:
         vendedores = item.get("sellers") or []

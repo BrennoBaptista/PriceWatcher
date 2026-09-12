@@ -191,3 +191,43 @@ def test_resposta_que_nao_e_lista_falha_alto(ps5):
 def test_resposta_que_nao_e_json_falha_alto(ps5):
     with pytest.raises(RuntimeError, match="nao e JSON"):
         _adapter().fetch(ps5, FetcherFalso("<html>Access Denied</html>"))
+
+
+def test_paginacao_conta_produtos_nao_ofertas(ps5):
+    """REGRESSAO: a janela _from/_to conta PRODUTOS, e um produto pode render
+    varias ofertas. Comparar len(ofertas) com o tamanho da pagina encerrava a
+    paginacao cedo -- ou tarde -- pelo motivo errado."""
+    import json
+
+    # 50 produtos (pagina cheia), mas apenas 25 geram oferta: os outros vem sem
+    # vendedor. Contando ofertas, pararia na primeira pagina.
+    com_vendedor = {
+        "productName": "Console PlayStation 5 Slim 1TB", "link": "https://x/p",
+        "items": [{"itemId": "s{i}", "sellers": [
+            {"sellerId": "1", "sellerName": "L", "commertialOffer": {
+                "Price": 4000.0, "IsAvailable": True, "AvailableQuantity": 5,
+                "Installments": [{"PaymentSystemName": "Pix",
+                                  "NumberOfInstallments": 1,
+                                  "TotalValuePlusInterestRate": 3800.0}]}}]}],
+    }
+    sem_vendedor = {"productName": "Console PlayStation 5 Slim 1TB",
+                    "link": "https://x/p", "items": [{"itemId": "z", "sellers": []}]}
+
+    pagina = []
+    for i in range(25):
+        p = json.loads(json.dumps(com_vendedor))
+        p["items"][0]["itemId"] = f"sku{i}"
+        pagina.append(p)
+        pagina.append(json.loads(json.dumps(sem_vendedor)))
+    assert len(pagina) == 50
+
+    class FetcherContador:
+        def __init__(self, corpo): self.corpo, self.n = corpo, 0
+        def get(self, url):
+            self.n += 1
+            # Da segunda pagina em diante, devolve vazio para encerrar.
+            return self.corpo if self.n == 1 else "[]"
+
+    f = FetcherContador(json.dumps(pagina))
+    _adapter().fetch(ps5, f)
+    assert f.n >= 2, "parou na primeira pagina apesar de ela estar cheia"

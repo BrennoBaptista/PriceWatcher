@@ -91,7 +91,10 @@ def main(argv: list[str] | None = None) -> int:
         from .selftest import healthcheck
         return healthcheck(caminho_db, args.max_age_hours)
 
-    cfg = carrega(args.config, env=args.env)
+    # --status e --selftest sao somente-leitura: nao devem exigir os segredos
+    # do Telegram so para responder se a ultima coleta rodou.
+    somente_leitura = args.status or args.selftest
+    cfg = carrega(args.config, env=args.env, estrito=not somente_leitura)
     _log(os.environ.get("LOG_LEVEL", "INFO"))
 
     if args.selftest:
@@ -106,13 +109,28 @@ def main(argv: list[str] | None = None) -> int:
         return _teste_notificacao(cfg)
 
     if args.run_once:
-        return _rodada(cfg, caminho_db, dry_run=args.dry_run)
+        return _rodada(
+            cfg, caminho_db,
+            dry_run=args.dry_run,
+            marcar_teste=args.marcar_teste or None,
+        )
 
-    return _serve(cfg, caminho_db, args)
+    if args.serve:
+        return _serve(cfg, caminho_db, args)
+
+    # Sem queda livre: um modo novo que esqueca de ser tratado aqui vira erro,
+    # nao vira --serve por acidente.
+    raise AssertionError("modo nao tratado -- confira os ifs acima")
 
 
 # ----------------------------------------------------------------- execucao
-def _rodada(cfg, caminho_db: Path, dry_run: bool = False) -> int:
+def _rodada(
+    cfg,
+    caminho_db: Path,
+    dry_run: bool = False,
+    marcar_teste: bool | None = None,
+) -> int:
+    """`marcar_teste=None` deixa a origem ser detectada (ver e_execucao_manual)."""
     with Repo(caminho_db) as repo:
         resumo = coleta(cfg, repo)
         alertas = avalia(
@@ -120,13 +138,14 @@ def _rodada(cfg, caminho_db: Path, dry_run: bool = False) -> int:
         )
         _relatorio(repo, resumo, alertas, caminho_db)
 
+        marca = e_execucao_manual() if marcar_teste is None else marcar_teste
         if dry_run:
             if alertas:
                 print("--- mensagem que seria enviada ---")
-                print(render.digest(alertas))
+                print(render.digest(alertas, teste=marca))
                 print()
         else:
-            _notifica(cfg, repo, resumo, alertas)
+            _notifica(cfg, repo, resumo, alertas, teste=marca)
 
     return 1 if resumo.falhas else 0
 

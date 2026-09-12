@@ -139,14 +139,14 @@ def test_filtro_por_categoria_continua_disponivel():
 # ------------------------------------------------- marca de execucao manual
 def test_digest_sem_marca_por_padrao():
     texto = render.digest([alerta(voltou_ao_estoque=True)])
-    assert "TESTE MANUAL" not in texto
+    assert "MANUAL" not in texto
 
 
 def test_digest_marcado_avisa_que_nao_e_alerta_real():
     """O grupo tem outras pessoas: teste sem marca vira falso alarme."""
     texto = render.digest([alerta(voltou_ao_estoque=True)], teste=True)
-    assert "TESTE MANUAL" in texto
-    assert texto.index("TESTE MANUAL") < texto.index("oportunidade")
+    assert "MANUAL" in texto
+    assert texto.index("MANUAL") < texto.index("oportunidade")
 
 
 def test_origem_container_nao_marca(monkeypatch):
@@ -167,7 +167,7 @@ def test_sem_variavel_de_origem_e_execucao_manual(monkeypatch):
 def test_router_repassa_a_marca():
     t = TransporteFalso()
     Router(_cfg(), t).envia_precos([alerta(voltou_ao_estoque=True)], teste=True)
-    assert "TESTE MANUAL" in t.enviados[0][1]
+    assert "MANUAL" in t.enviados[0][1]
 
 
 def test_bundle_sem_nota_ainda_aparece_como_bundle():

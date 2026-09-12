@@ -1160,6 +1160,33 @@ As cinco perguntas do plano original, respondidas com evidência:
 Sobre a pergunta 5, a resposta inicial foi otimista demais e a revisão manual corrigiu —
 ver **18.2** logo abaixo.
 
+### 18.3 Revisão do código antes do merge
+
+Passada de revisão sobre o diff inteiro da branch. Quatro defeitos encontrados, todos
+da mesma família: **coisa declarada que não era usada**, e por isso invisível para os
+testes existentes.
+
+| Defeito | Efeito | Guarda criada |
+|---|---|---|
+| `--marcar-teste` declarada no argparse e **nunca lida** | flag documentada na ajuda que não fazia nada | Teste que extrai as flags do fonte e exige que cada uma seja consumida |
+| `--serve` funcionava por **queda livre** no fim do `main()` | um modo novo esquecido viraria `--serve` por acidente | O mesmo teste acima pegou; agora há `if args.serve` explícito e erro no fim |
+| `--selftest` sondava uma **lista fixa de URLs** | as duas lojas VTEX estavam habilitadas e eram ignoradas em silêncio — no comando que existe para validar o ambiente | Passou a sondar pelos adapters reais; teste compara lojas habilitadas com lojas sondadas |
+| Paginação da VTEX comparava **ofertas com tamanho de página** | a janela `_from`/`_to` conta produtos, e um produto pode render várias ofertas | Teste com página cheia de 50 produtos gerando 25 ofertas |
+
+Dois efeitos colaterais bons:
+
+- O `--selftest` agora exercita o **parser**, não só a conectividade. Antes ele dizia
+  "a loja respondeu"; agora diz "a loja respondeu e nós entendemos a resposta".
+- `--status`, `--selftest` e `--healthcheck` deixaram de exigir os segredos do Telegram.
+  Um relatório somente-leitura falhava com *"config.yaml referencia
+  ${TELEGRAM_GROUP_CHAT_ID}"* — pedir credencial de notificação para responder "a última
+  coleta rodou?" era errado. A validação estrita continua valendo para `--run-once` e
+  `--serve`, onde falhar no boot é o comportamento desejado.
+
+Também corrigi o texto do aviso de execução manual. Ele afirmava que *"a queda foi
+simulada"*, o que era verdade no teste que eu tinha acabado de fazer e **mentira** numa
+execução manual que detectasse queda real. Agora diz apenas de onde a mensagem veio.
+
 ### 18.2 Revisão manual dos títulos — o que ela pegou
 
 A definição de pronto exigia "variantes classificadas corretamente numa amostra revisada
