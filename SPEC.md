@@ -25,8 +25,8 @@ seção 5. Adicionar um produto novo é configuração, não refatoração.
 
 ### Critério de sucesso
 
-- Coleta roda 2x/dia sem falhar silenciosamente.
-- Quando um anúncio bate o menor preço já visto, o alerta chega em até 12h.
+- Coleta roda a cada 6 horas sem falhar silenciosamente.
+- Quando um anúncio bate o menor preço já visto, o alerta chega em até 6h.
 - Zero (ou quase zero) alertas falsos causados por erro de parsing.
 
 ---
@@ -39,7 +39,7 @@ seção 5. Adicionar um produto novo é configuração, não refatoração.
 |---|---|
 | GPUs monitoradas | RX 9070 XT e RTX 5070 Ti — **todos** os fabricantes/modelos (ASUS, Gigabyte, MSI, Sapphire, PowerColor, XFX, Zotac, Galax, PNY, ASRock...) |
 | Lojas | Kabum, Pichau, Terabyteshop |
-| Frequência | 2x/dia (configurável) |
+| Frequência | **4x/dia**, a cada 6 horas (configurável) |
 | Preço de referência | **À vista (PIX/boleto)** — preço parcelado guardado como dado secundário |
 | Gatilhos de alerta | **(a)** novo mínimo histórico · **(b)** produto voltou ao estoque |
 | Notificação | Telegram (mensagem para um chat privado) |
@@ -250,8 +250,9 @@ questão se encerra.
 - Delay aleatório de 2–6s entre requisições e jitter no horário da coleta.
 - Retry com backoff exponencial (3 tentativas) apenas em erro de rede/5xx.
 - Timeout de 20s por requisição.
-- Volume total: ~6–12 requisições por rodada (3 lojas × 2 GPUs, mais eventuais páginas
-  de detalhe), 2x/dia. Tráfego desprezível para qualquer uma dessas lojas.
+- Volume total: ~14–20 requisições por rodada (3 lojas × 2 GPUs + 2 lojas × 1 console,
+  mais paginação), **4x/dia**. Ainda tráfego desprezível — cerca de 70 requisições
+  diárias distribuídas entre cinco lojas.
 
 ---
 
@@ -430,7 +431,7 @@ E   price_cash < min(price_cash de todas as observações anteriores desse produ
 | Aquecimento | Exige ≥ 3 observações anteriores do produto | Todo produto novo é "mínimo histórico" na primeira vez |
 | Delta mínimo | Exige queda ≥ 1% **e** ≥ R$ 100 vs. o mínimo anterior | Só avisa quando a economia é material, não por variação de centavos |
 | Sanidade | Ignora (e loga aviso) preço < 50% do mínimo histórico | Queda absurda quase sempre é parsing quebrado, não promoção |
-| Cooldown | Máximo 1 alerta `new_low` por produto a cada 12h | Evita repetição entre rodadas próximas |
+| Cooldown | Máximo 1 alerta `new_low` por produto a cada 6h | Evita repetição entre rodadas próximas. Acompanha o intervalo de coleta: um cooldown maior que o intervalo silenciaria rodadas inteiras |
 
 **Limiares são por alvo.** Os valores acima são o *default global*; cada `target` pode
 sobrescrevê-los. Isso deixa de ser detalhe quando o PS5 entra: R$ 100 foi calibrado
@@ -601,7 +602,7 @@ Heartbeat semanal opcional via config.
 
 - **APScheduler** dentro do próprio processo (o container é um serviço de longa
   duração, não um one-shot de cron externo).
-- Padrão: `08:00` e `20:00` no fuso `America/Sao_Paulo`.
+- Padrão: `02:00`, `08:00`, `14:00` e `20:00` no fuso `America/Sao_Paulo`.
 - Jitter de ±15 min para não bater sempre no mesmo minuto exato.
 - Flag `--run-once` para execução manual/teste sem esperar o schedule.
 
@@ -627,7 +628,7 @@ Heartbeat semanal opcional via config.
 
 ```yaml
 schedule:
-  times: ["08:00", "20:00"]
+  times: ["02:00", "08:00", "14:00", "20:00"]   # a cada 6 horas
   jitter_minutes: 15
 
 notify:
@@ -693,7 +694,7 @@ alerts:                                  # defaults globais
     min_observations: 3
     min_drop_percent: 1.0
     min_drop_brl: 100       # nos preços atuais, este é o limiar que efetivamente manda
-    cooldown_hours: 12
+    cooldown_hours: 6       # acompanha o intervalo de coleta
   back_in_stock:
     enabled: true
     cooldown_hours: 24
