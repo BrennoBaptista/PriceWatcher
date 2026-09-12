@@ -90,3 +90,25 @@ def test_selftest_casa_loja_com_alvo_da_categoria_certa():
         assert loja in cfg.stores_for(alvo.category), (
             f"{loja} sondada com alvo {alvo.id} de categoria que ela nao atende"
         )
+
+
+def test_selftest_sonda_todos_os_alvos_da_loja():
+    """REGRESSAO: sondar so o primeiro alvo deixava a RTX 5070 Ti de fora, e a
+    saida ainda assim marcava a loja como OK."""
+    from pathlib import Path
+
+    from pricewatcher.config import carrega
+    from pricewatcher.selftest import _pares_para_sondar
+
+    cfg = carrega(Path("config.yaml"), estrito=False)
+    pares = _pares_para_sondar(cfg)
+    esperado = {
+        (loja, alvo.id)
+        for alvo in cfg.targets
+        for loja in cfg.stores_for(alvo.category)
+    }
+    assert {(loja, alvo.id) for loja, alvo in pares} == esperado
+    # Concretamente: as tres lojas de GPU precisam sondar os DOIS alvos.
+    for loja in ("kabum", "pichau", "terabyte"):
+        alvos = {a.id for lj, a in pares if lj == loja}
+        assert alvos == {"RX_9070_XT", "RTX_5070_TI"}, f"{loja} sonda {alvos}"

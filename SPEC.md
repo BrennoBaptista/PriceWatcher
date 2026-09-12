@@ -1171,6 +1171,7 @@ testes existentes.
 | `--marcar-teste` declarada no argparse e **nunca lida** | flag documentada na ajuda que não fazia nada | Teste que extrai as flags do fonte e exige que cada uma seja consumida |
 | `--serve` funcionava por **queda livre** no fim do `main()` | um modo novo esquecido viraria `--serve` por acidente | O mesmo teste acima pegou; agora há `if args.serve` explícito e erro no fim |
 | `--selftest` sondava uma **lista fixa de URLs** | as duas lojas VTEX estavam habilitadas e eram ignoradas em silêncio — no comando que existe para validar o ambiente | Passou a sondar pelos adapters reais; teste compara lojas habilitadas com lojas sondadas |
+| `--selftest` sondava **só o primeiro alvo** de cada loja | as lojas de GPU eram testadas só com a RX 9070 XT; a RTX 5070 Ti nunca era exercitada, mas a loja aparecia como OK | Sonda todas as combinações loja × alvo; teste exige que as 3 lojas de GPU cubram os 2 alvos |
 | Paginação da VTEX comparava **ofertas com tamanho de página** | a janela `_from`/`_to` conta produtos, e um produto pode render várias ofertas | Teste com página cheia de 50 produtos gerando 25 ofertas |
 
 Dois efeitos colaterais bons:

@@ -90,18 +90,23 @@ def executa(cfg: AppConfig, rede: bool = True) -> int:
 
 
 def _pares_para_sondar(cfg: AppConfig) -> list[tuple[str, object]]:
-    """Um (loja, alvo) por loja habilitada, respeitando a categoria."""
+    """**Todas** as combinacoes (loja habilitada x alvo da categoria dela).
+
+    A primeira versao sondava so o primeiro alvo de cada loja. Para as lojas de
+    GPU isso era sempre a RX 9070 XT, e a RTX 5070 Ti nunca era exercitada --
+    mas a saida listava a loja como "OK", sugerindo uma cobertura que nao
+    existia. Um regex quebrado no alvo nao sondado passaria batido justamente
+    no comando que existe para dizer se a coleta funciona.
+    """
     pares = []
     for loja, ajustes in cfg.stores.items():
         if not ajustes.enabled:
             continue
-        alvo = next(
-            (t for t in cfg.targets if loja in cfg.stores_for(t.category)), None
-        )
-        if alvo is not None:
-            pares.append((loja, alvo))
-        else:
+        alvos = [t for t in cfg.targets if loja in cfg.stores_for(t.category)]
+        if not alvos:
             log.warning("loja %r habilitada mas sem alvo da categoria dela", loja)
+            continue
+        pares.extend((loja, alvo) for alvo in alvos)
     return pares
 
 
