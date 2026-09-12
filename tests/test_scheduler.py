@@ -8,7 +8,7 @@ import pytest
 
 from pricewatcher.db import Repo
 from pricewatcher.models import RunStatus, ScheduleConfig
-from pricewatcher.scheduler import monta, proximas
+from pricewatcher.scheduler import monta, proximas, proximas_execucoes
 from pricewatcher.selftest import healthcheck
 
 
@@ -40,6 +40,14 @@ def test_proximas_execucoes_listadas():
     sched = monta(ScheduleConfig(times=["08:00", "20:00"]), _nada)
     nomes = [n for n, _ in proximas(sched)]
     assert len(nomes) == 2
+
+
+def test_proximas_execucoes_sem_montar_scheduler():
+    """O --status precisa dos horarios sem instanciar agendador nem logar."""
+    itens = proximas_execucoes(ScheduleConfig(times=["08:00", "20:00"]))
+    assert len(itens) == 2
+    assert all(quando is not None for _, quando in itens)
+    assert all(quando.tzinfo is not None for _, quando in itens)
 
 
 def test_horario_sem_minutos_e_aceito():

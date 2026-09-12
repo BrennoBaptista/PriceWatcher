@@ -171,3 +171,100 @@ def test_acessorio_sem_sinal_de_console_e_descartado(ps5):
     r = normaliza([oferta("Controle DualSense para PlayStation 5", 35000)], ps5)
     assert r.ofertas == []
     assert r.descartes[Descarte.NAO_CASA] == 1
+
+
+# ------------------------------------------------------- acessorios reais
+# Todos estes passaram por console na primeira versao do filtro, porque o
+# require_any aceitava a palavra "console" -- e acessorio se anuncia como
+# "para console PS5". Revisao manual dos 88 titulos coletados pegou.
+ACESSORIOS_REAIS = [
+    "Mochila de console de jogos lzhywei compatível com Sony PS5/PS5 Pro",
+    "Chave Torx T8 30mm c/ Furo p/ abrir Console Ps3 Ps4 Ps5 Xbox",
+    "Kit 4 Chaves Torx T8 30mm c/ Furo abre Console Ps4 Ps5 Xbox",
+    "Cabo Flat Power 6 vias Botão Liga Desliga On Off Console PS5",
+    "Carregador Base Dock Station Para Console Play 5 Ps5",
+    "Tampa Do Console Playstation 5 Slim Chroma Pearl Sony - Ps5",
+    "Face Plates Cover Skins Shell Panels para console PS5, roxo",
+    "Ventilador de resfriamento Sanpyl para console PS5 Slim com luz LED",
+    "Base de resfriamento de ventilador multifuncional compative console PS5",
+    "Reprodutor Remoto PlayStation Portal Para Console PS5",
+    "PlayStation Portal - Reprodutor Remoto para Console PS5 Branco",
+    "Estojo de transporte para Playstation Portal Remote Player, console PS5",
+    "Saco de armazenamento para ps5 console de jogos",
+    "Adaptador de câmera para psvr/ps5, cabo conversor ps vr",
+    "Bolsa de console para PS5 com compartimentos",
+]
+
+
+@pytest.mark.parametrize("titulo", ACESSORIOS_REAIS)
+def test_acessorio_real_nao_vira_console(ps5_real, titulo):
+    # Preco DENTRO da faixa de sanidade de proposito: se o acessorio cair por
+    # ser barato, o teste nao prova nada sobre o filtro de titulo. Acessorio
+    # anunciado a preco de console e justamente o caso perigoso.
+    r = normaliza([oferta(titulo, 400000)], ps5_real)
+    assert r.ofertas == [], f"acessorio aceito como console: {titulo!r}"
+    assert r.descartes[Descarte.NAO_CASA] + r.descartes[Descarte.EXCLUIDO] == 1
+
+
+# Consoles de verdade, coletados junto com os acessorios acima.
+CONSOLES_REAIS = [
+    "Console PlayStation 5 1TB Sony",
+    "Console PlayStation 5 825GB Sony Standard",
+    "Console Playstation 5 - PS5",
+    "Novo Console Playstation PS5",
+    "Playstation 5 Sony, 825GB, 1 Controle Sem Fio, Standard com Disco",
+    "Console PS5 Slim Digital 1TB - Sony",
+    "Console Playstation 5 Pro Sony Ssd 2Tb Com Controle Branco",
+    "Console Video Game Ps5 1tb Slim Midia Fisica",
+]
+
+
+@pytest.mark.parametrize("titulo", CONSOLES_REAIS)
+def test_console_real_e_aceito(ps5_real, titulo):
+    r = normaliza([oferta(titulo, 400000)], ps5_real)
+    assert len(r.ofertas) == 1, f"console legitimo rejeitado: {titulo!r}"
+
+
+@pytest.mark.parametrize(
+    "titulo,bundle",
+    [
+        # Jogo listado sem "com", sem "+" e sem a palavra bundle.
+        ("Console Playstation 5 God Of War Ragnarok 825GB Sony", True),
+        ("Console PlayStation PS5 Slim Disk Astro Bot e Gran Turismo 7 1TB", True),
+        ("Console sony playstation 5 PS5 digital 2 Jogos ssd 1TB", True),
+        ("Console PlayStation 5 Slim Disk com 2 Jogos", True),
+        ("Console Playstation 5 Ps5 Standard 2 Controles Dualsense", True),
+        # Um controle e o conteudo padrao da caixa, nao combo.
+        ("Console PS5 Slim Físico 1TB com Controle DualSense Branco Sony", False),
+        ("Playstation 5 Sony, 825GB, 1 Controle Sem Fio, Standard com Disco", False),
+        ("Console PlayStation 5 825GB Sony Standard", False),
+    ],
+)
+def test_bundle_em_titulo_real(ps5_real, titulo, bundle):
+    r = normaliza([oferta(titulo, 400000)], ps5_real)
+    assert len(r.ofertas) == 1
+    assert r.ofertas[0].is_bundle is bundle
+
+
+# Acessorios que a lista de exclusao NAO nomeia. Estes so caem porque o
+# require_any exige que o titulo comece com "console" ou declare capacidade --
+# acessorio se anuncia como "para console PS5", no meio da frase.
+#
+# A distincao importa: a lista negra cobre o que ja vimos, o require_any cobre
+# o que ainda nao vimos. Sem este teste, ninguem saberia que o segundo faz
+# diferenca, porque os acessorios reais coletados caem pelos dois criterios.
+ACESSORIOS_NAO_CATALOGADOS = [
+    "Luminária decorativa formato console PS5 3D",
+    "Camiseta estampa console PS5 tamanho G",
+    "Miniatura colecionável do console PS5 em resina",
+    "Etiqueta identificadora para console PS5",
+]
+
+
+@pytest.mark.parametrize("titulo", ACESSORIOS_NAO_CATALOGADOS)
+def test_acessorio_fora_da_lista_negra_cai_pelo_sinal_positivo(ps5_real, titulo):
+    r = normaliza([oferta(titulo, 400000)], ps5_real)
+    assert r.ofertas == [], f"aceito como console: {titulo!r}"
+    assert r.descartes[Descarte.NAO_CASA] == 1, (
+        "deveria cair por falta de sinal positivo, nao pela lista de exclusao"
+    )

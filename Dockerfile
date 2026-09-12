@@ -34,7 +34,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DB_PATH=/data/prices.db \
-    TZ=America/Sao_Paulo
+    TZ=America/Sao_Paulo \
+    PRICEWATCHER_ORIGEM=container
 
 WORKDIR /app
 COPY config.yaml ./config.yaml

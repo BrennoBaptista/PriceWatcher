@@ -56,7 +56,9 @@ def test_digest_plural_e_um_unico_cabecalho():
 
 def test_bundle_aparece_na_mensagem():
     a = alerta(is_bundle=True, bundle_note="EA Sports FC 26", voltou_ao_estoque=True)
-    assert "🎁 bundle: EA Sports FC 26" in render.digest([a])
+    texto = render.digest([a])
+    assert "bundle" in texto.lower()
+    assert "EA Sports FC 26" in texto
 
 
 def test_titulo_com_html_e_escapado():
@@ -132,3 +134,48 @@ def test_filtro_por_categoria_continua_disponivel():
     t = TransporteFalso()
     Router(cfg, t).envia_precos([alerta(voltou_ao_estoque=True)])  # category="gpu"
     assert t.enviados == []
+
+
+# ------------------------------------------------- marca de execucao manual
+def test_digest_sem_marca_por_padrao():
+    texto = render.digest([alerta(voltou_ao_estoque=True)])
+    assert "MANUAL" not in texto
+
+
+def test_digest_marcado_avisa_que_nao_e_alerta_real():
+    """O grupo tem outras pessoas: teste sem marca vira falso alarme."""
+    texto = render.digest([alerta(voltou_ao_estoque=True)], teste=True)
+    assert "MANUAL" in texto
+    assert texto.index("MANUAL") < texto.index("oportunidade")
+
+
+def test_origem_container_nao_marca(monkeypatch):
+    from pricewatcher.__main__ import e_execucao_manual
+
+    monkeypatch.setenv("PRICEWATCHER_ORIGEM", "container")
+    assert e_execucao_manual() is False
+
+
+def test_sem_variavel_de_origem_e_execucao_manual(monkeypatch):
+    """Detectar em vez de depender de alguem lembrar da flag."""
+    from pricewatcher.__main__ import e_execucao_manual
+
+    monkeypatch.delenv("PRICEWATCHER_ORIGEM", raising=False)
+    assert e_execucao_manual() is True
+
+
+def test_router_repassa_a_marca():
+    t = TransporteFalso()
+    Router(_cfg(), t).envia_precos([alerta(voltou_ao_estoque=True)], teste=True)
+    assert "MANUAL" in t.enviados[0][1]
+
+
+def test_bundle_sem_nota_ainda_aparece_como_bundle():
+    """'... com 2 Jogos' nao deixa texto sobrando para a nota.
+
+    Sem a marca, o combo ficaria indistinguivel de um console avulso na
+    mensagem -- e distinguir os dois e o motivo de rastrear bundle.
+    """
+    a = alerta(is_bundle=True, bundle_note=None, voltou_ao_estoque=True)
+    texto = render.digest([a])
+    assert "bundle" in texto.lower()

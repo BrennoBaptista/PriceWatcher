@@ -18,7 +18,7 @@ manual.
 | Fase | Produto | Lojas |
 |---|---|---|
 | v1 (Fases 0–3) | Placas de vídeo **RX 9070 XT** e **RTX 5070 Ti** | Kabum, Pichau, Terabyteshop |
-| Fase 5 | Console **Sony PlayStation 5** (todas as variantes, incluindo bundles) | Casas Bahia, Ponto, Magalu, Americanas, Casa e Vídeo |
+| Fase 5 | Console **Sony PlayStation 5** (todas as variantes, incluindo bundles) | Americanas, Casa e Vídeo |
 
 O modelo de dados e os coletores são **agnósticos de categoria** desde a Fase 1 — ver
 seção 5. Adicionar um produto novo é configuração, não refatoração.
@@ -48,8 +48,8 @@ seção 5. Adicionar um produto novo é configuração, não refatoração.
 ### Fora do escopo (v1)
 
 - Compra automática / carrinho.
-- **PlayStation 5 e o varejo generalista** (Casas Bahia, Ponto, Magalu, Americanas,
-  Casa e Vídeo) — planejado na seção 18, entregue na **Fase 5**.
+- **PlayStation 5 e o varejo generalista** (Americanas, Casa e Vídeo) — planejado na
+  seção 18, entregue na **Fase 5**.
 - **Amazon.com.br** — ver a análise na seção 4.1. Reavaliada na Fase 4 via agregador
   brasileiro, não por scraping direto.
 - Mercado Livre, marketplaces de terceiros dentro das lojas.
@@ -167,6 +167,43 @@ FALHAS: 0
    produtos em silêncio. Com `json.JSONDecoder().raw_decode`, que respeita strings,
    a extração fica completa. A paginação existe (`&page=N`) e é usada com parada
    antecipada, já que os itens relevantes ficam nas primeiras páginas.
+
+### 4.2 Placar das lojas
+
+Situação consolidada em 2026-09-11. Verificado contra os sites reais, não presumido.
+
+**✅ Coletando (5)**
+
+| Loja | Categoria | Fonte | Preço à vista | Disponibilidade | Onde está |
+|---|---|---|---|---|---|
+| **Kabum** | GPU | `__NEXT_DATA__` (Next.js Pages) | `priceWithDiscount` | `quantity > 0` | `main`, em produção |
+| **Pichau** | GPU | payload RSC (App Router) | `pichau_prices.avista` | `stock_status` | `main`, em produção |
+| **Terabyteshop** | GPU | HTML + `data-tss-*` | `data-tss-price` | `data-tss-estoque` | `main`, em produção |
+| **Americanas** | console | API pública VTEX | `Installments` → PIX 1x | `IsAvailable` + qtd | `fase5-ps5` |
+| **Casa e Vídeo** | console | API pública VTEX | `Installments` → PIX 1x | `IsAvailable` + qtd | `fase5-ps5` |
+
+As duas últimas usam **o mesmo adapter**, parametrizado por domínio.
+
+**❌ Fora (4)**
+
+| Loja | Motivo | Reversível? |
+|---|---|---|
+| **Casas Bahia** | Akamai Bot Manager — exige execução de JS | Só com navegador headless, que o servidor não comporta |
+| **Ponto** | idem (mesmo grupo da Casas Bahia) | idem |
+| **Magalu** | Akamai Bot Manager | idem |
+| **Amazon.com.br** | Decisão de projeto: ToS restritivo e PA-API exige conta de Associados com vendas. Google Shopping foi avaliado como intermediário e rejeitado por qualidade de dado (seção 4.1) | Via agregador BR, na Fase 4 |
+
+**🔍 Não avaliada**
+
+| Loja | Situação |
+|---|---|
+| **Zoom / Buscapé** | Experimento previsto para a Fase 4. Cobriria indiretamente parte do que se perdeu acima |
+
+**Leitura honesta do placar.** Das 9 lojas consideradas, 5 coletam. As 4 que ficaram de
+fora caem em dois grupos: uma decisão consciente (Amazon) e um obstáculo técnico real
+(Akamai). Nenhuma foi perdida por limitação do nosso código — e vale notar que Casas
+Bahia e Ponto são a mesma empresa, então a perda efetiva são **dois grupos de varejo**,
+não três lojas independentes.
 
 ### 4.1 Cobertura da Amazon — análise e decisão
 
@@ -664,13 +701,24 @@ alerts:                                  # defaults globais
 
 **Sobre os filtros do PS5.** `require_all` é o sinal do produto; `require_any` é o sinal
 de que aquilo é um **console**, e não um acessório; `exclude` é a rede de segurança.
-Repare que a lista de exclusão **não** contém "controle" nem "jogo", de propósito: um
-bundle legítimo se chama *"PS5 + 2º controle DualSense"*, e excluir por essas palavras
-mataria exatamente o que decidimos rastrear. Quem separa console de acessório é o
-`require_any`, não a lista negra.
 
-Essa combinação é a parte mais frágil da Fase 5 e precisa ser validada com títulos reais
-no spike — ver seção 18.
+A lista de exclusão **não** contém "controle" nem "jogo", de propósito: um bundle
+legítimo se chama *"PS5 + 2º controle DualSense"*, e excluir por essas palavras mataria
+exatamente o que decidimos rastrear.
+
+> ⚠️ **Correção de uma afirmação anterior.** Esta seção dizia que "quem separa console de
+> acessório é o `require_any`, não a lista negra". **Estava errado**, e a revisão manual
+> dos títulos reais provou: o `require_any` original aceitava a palavra `console`, e
+> acessório em português se anuncia como *"para console PS5"*. Passaram por console uma
+> mochila, um cabo flat, uma **chave Torx**, tampas e uma dúzia de *PlayStation Portal* —
+> que é outro aparelho. Ver seção 18.2.
+>
+> Os dois mecanismos são necessários e cobrem coisas diferentes: a **lista de exclusão**
+> pega o acessório que já vimos; o **`require_any` apertado** (título começa com
+> "console", ou declara capacidade) pega o que ainda não vimos. Há teste separado para
+> cada papel — o do `require_any` usa acessórios propositalmente fora da lista negra,
+> porque com os títulos reais os dois critérios se sobrepõem e mascaram a contribuição
+> de cada um.
 
 ---
 
@@ -933,10 +981,7 @@ Pricelookup/
 │   │   ├── pichau.py
 │   │   ├── terabyte.py
 │   │   └── platforms/       # Fase 5 — adapter por família, não por marca
-│   │       ├── vtex.py      #   genérico, parametrizado por domínio
-│   │       ├── gcb.py       #   Casas Bahia + Ponto
-│   │       ├── magalu.py
-│   │       └── americanas.py
+│   │       └── vtex.py      #   genérico: Casa e Vídeo + Americanas
 │   ├── normalize.py          # título → gpu_model/brand/model_line + filtros
 │   ├── db.py                 # schema, migrações, repositório
 │   ├── alerts.py             # regras de mínimo histórico e volta ao estoque
@@ -980,7 +1025,7 @@ uma refatoração em vez de uma adição.
 | 6 | Container morre silenciosamente | `restart: unless-stopped` + healthcheck por idade da última rodada |
 | 7 | *(Fase 4)* Agregador muda a base do preço que publica e gera "mínimo" falso | Se o experimento virar adapter, marcar a fonte como `price_basis: aggregated` e exigir confirmação na loja de origem antes de alertar |
 | 8 | *(Fase 5)* Bundle comparado com console avulso gera "mínimo" inexistente | Série histórica é por SKU; `is_bundle` obrigatório em qualquer agregação (seções 5 e 18) |
-| 9 | *(Fase 5)* Filtro de acessório derruba bundles legítimos | Separação feita por `require_any` (sinal de console), não por lista negra de palavras; validado no spike com títulos reais |
+| 9 | *(Fase 5)* Filtro de acessório derruba bundles legítimos | "controle" e "jogo" ficam fora da lista de exclusão de propósito; a separação usa sinal positivo **e** lista negra, com teste para cada papel (seção 18.2) |
 | 10 | *(Fase 5)* Falha de envio a um destino silencia os demais | Fan-out com erro isolado por destino no `router.py` |
 
 ### Perguntas em aberto
@@ -1039,24 +1084,147 @@ A observação que muda o custo desta fase: **as cinco lojas não são cinco pro
 Elas se agrupam em quatro famílias de plataforma, e adapter se escreve por família,
 não por marca.
 
-| Loja | Família | Hipótese de coleta |
+✅ **Spike executado em 2026-09-11.** Resultado abaixo — a hipótese acertou no
+mecanismo e errou no elenco.
+
+| Loja | Resultado | Fonte |
 |---|---|---|
-| Casas Bahia | `gcb` | Grupo Casas Bahia — plataforma compartilhada com Ponto (e Extra). **Um adapter cobre as duas** |
-| Ponto | `gcb` | idem acima, mudando só o domínio |
-| Casa e Vídeo | `vtex` | Loja VTEX. A VTEX expõe uma **API pública de catálogo** (`/api/catalog_system/pub/products/search?ft=<termo>`) |
-| Magalu | `magalu` | Plataforma própria; adapter dedicado |
-| Americanas | `americanas` | Plataforma própria, compartilhada com Submarino/Shoptime |
+| **Casa e Vídeo** | ✅ coletando | API pública de catálogo VTEX |
+| **Americanas** | ✅ coletando | API pública de catálogo VTEX |
+| Casas Bahia | ❌ descartada | Akamai Bot Manager (exige JS) |
+| Ponto | ❌ descartada | Akamai Bot Manager (exige JS) |
+| Magalu | ❌ descartada | Akamai Bot Manager (exige JS) |
 
-O bilhete premiado aqui é o **adapter VTEX genérico**: parametrizado por domínio, ele
-cobre a Casa e Vídeo e, de brinde, boa parte do varejo brasileiro que roda VTEX.
-Adicionar uma loja VTEX nova passaria a ser uma entrada de config — zero código.
+**O adapter VTEX genérico pagou, e melhor que o previsto.** A hipótese era que ele
+cobriria a Casa e Vídeo. Na verdade a **Americanas também roda VTEX** — o HTML dela
+declara `window.VTEX_METADATA = {account:'americanas', renderer:'faststore'}` — então
+as duas lojas são atendidas por **um único adapter**, parametrizado por domínio. A spec
+antes previa um adapter dedicado para a Americanas; não é preciso. Qualquer outra loja
+VTEX passa a ser uma entrada de config, sem código.
 
-> ⚠️ **Tudo nesta tabela é hipótese, não fato verificado.** As famílias de plataforma e,
-> principalmente, a disponibilidade da API VTEX precisam ser confirmadas antes de
-> qualquer estimativa. É exatamente o papel do spike abaixo — mesmo tratamento que
-> demos às três lojas de hardware na seção 4.
+**Três lojas caíram, e a decisão já estava tomada.** Casas Bahia, Ponto e Magalu ficam
+atrás do **Akamai Bot Manager** — a resposta é uma casca de 2 a 6 KB com
+`akam-sw.js` e "Powered and protected by Privacy", que só vira conteúdo depois de
+executar JavaScript e resolver o desafio. Contornar isso exigiria navegador headless, o
+que o Core 2 Duo do servidor não comporta (seção 12). Pela regra da própria seção 11,
+**loja que exige JS é loja descartada** — então elas ficam desabilitadas na config, com
+o motivo registrado ali.
 
-### Spike da Fase 5 (fazer antes de qualquer código)
+Vale notar o que isso custa: Casas Bahia e Ponto compartilham dono e catálogo, então a
+perda real é de dois grupos de varejo, não de três lojas independentes.
+
+**O que a API VTEX entrega**, por item:
+
+| Campo | Origem |
+|---|---|
+| Preço à vista | `Installments` → entrada com `PaymentSystemName == "Pix"` e `NumberOfInstallments == 1` |
+| Preço cheio | `commertialOffer.Price` |
+| Disponibilidade | `IsAvailable` **e** `AvailableQuantity > 0` |
+| Vendedor | `sellerId == "1"` é a própria loja; qualquer outro é marketplace |
+| SKU | `items[].itemId` |
+
+O PIX não é detalhe: na Casa e Vídeo ele estava **17% abaixo** do `Price`. Usar o campo
+óbvio daria o número errado em todo alerta.
+
+### 18.1 Um bug de desenho que o PS5 revelou
+
+O console trouxe à tona um erro que já estava no código e afetava também as GPUs:
+**o normalizador descartava qualquer oferta sem preço à vista.**
+
+Parecia razoável — até aparecer o caso real. Na VTEX, item esgotado simplesmente **não
+traz `Installments`**, então não tem preço nenhum. Todos os 12 PS5 da Casa e Vídeo caíam
+fora por isso. E o efeito não é perder uma linha na base: sem gravar a observação
+"indisponível", **nunca existe a transição indisponível → disponível**, e o alerta de
+volta ao estoque jamais dispararia. Silenciosamente, para sempre.
+
+A regra corrigida separa os dois casos:
+
+- **Indisponível e sem preço** → estado normal de item esgotado. Registra.
+- **Disponível e sem preço** → aí sim é parser quebrado. Descarta e conta.
+
+Nas GPUs o bug estava latente porque as três lojas mandam preço mesmo com estoque zero.
+Há teste de regressão para os dois casos.
+
+### Spike da Fase 5 — perguntas e respostas
+
+As cinco perguntas do plano original, respondidas com evidência:
+
+| # | Pergunta | Resposta |
+|---|---|---|
+| 1 | A API VTEX responde para a Casa e Vídeo, com preço à vista? | **Sim.** 473 KB de JSON; PIX separado em `Installments` |
+| 2 | Casas Bahia e Ponto compartilham estrutura? | **Irrelevante:** as duas caem no mesmo bloqueio Akamai |
+| 3 | Dá para saber quem é o vendedor? | **Sim**, e de forma limpa: `sellerId == "1"` é 1P |
+| 4 | Alguma exige JavaScript? | **Três exigem** — e por isso foram descartadas |
+| 5 | Os filtros separam console de acessório sem matar bundles? | **Sim**, depois de ajuste — ver abaixo |
+
+Sobre a pergunta 5, a resposta inicial foi otimista demais e a revisão manual corrigiu —
+ver **18.2** logo abaixo.
+
+### 18.3 Revisão do código antes do merge
+
+Passada de revisão sobre o diff inteiro da branch. Quatro defeitos encontrados, todos
+da mesma família: **coisa declarada que não era usada**, e por isso invisível para os
+testes existentes.
+
+| Defeito | Efeito | Guarda criada |
+|---|---|---|
+| `--marcar-teste` declarada no argparse e **nunca lida** | flag documentada na ajuda que não fazia nada | Teste que extrai as flags do fonte e exige que cada uma seja consumida |
+| `--serve` funcionava por **queda livre** no fim do `main()` | um modo novo esquecido viraria `--serve` por acidente | O mesmo teste acima pegou; agora há `if args.serve` explícito e erro no fim |
+| `--selftest` sondava uma **lista fixa de URLs** | as duas lojas VTEX estavam habilitadas e eram ignoradas em silêncio — no comando que existe para validar o ambiente | Passou a sondar pelos adapters reais; teste compara lojas habilitadas com lojas sondadas |
+| Paginação da VTEX comparava **ofertas com tamanho de página** | a janela `_from`/`_to` conta produtos, e um produto pode render várias ofertas | Teste com página cheia de 50 produtos gerando 25 ofertas |
+
+Dois efeitos colaterais bons:
+
+- O `--selftest` agora exercita o **parser**, não só a conectividade. Antes ele dizia
+  "a loja respondeu"; agora diz "a loja respondeu e nós entendemos a resposta".
+- `--status`, `--selftest` e `--healthcheck` deixaram de exigir os segredos do Telegram.
+  Um relatório somente-leitura falhava com *"config.yaml referencia
+  ${TELEGRAM_GROUP_CHAT_ID}"* — pedir credencial de notificação para responder "a última
+  coleta rodou?" era errado. A validação estrita continua valendo para `--run-once` e
+  `--serve`, onde falhar no boot é o comportamento desejado.
+
+Também corrigi o texto do aviso de execução manual. Ele afirmava que *"a queda foi
+simulada"*, o que era verdade no teste que eu tinha acabado de fazer e **mentira** numa
+execução manual que detectasse queda real. Agora diz apenas de onde a mensagem veio.
+
+### 18.2 Revisão manual dos títulos — o que ela pegou
+
+A definição de pronto exigia "variantes classificadas corretamente numa amostra revisada
+à mão". Fiz isso sobre os **88 títulos de console** coletados, e foi a etapa que mais
+rendeu — dois problemas passavam despercebidos por todos os testes automatizados.
+
+**1. Acessório virando console.** Entre os 88, estavam mochila, bolsa, cabo flat, **chave
+Torx**, dock station, tampas, ventiladores e uma dúzia de *PlayStation Portal* — que é
+outro aparelho, não um PS5. Causa: `require_any` aceitava a palavra `console`, e
+acessório em português se anuncia como *"para console PS5"*. A palavra não discrimina
+nada.
+
+Correção em duas camadas, porque cada uma cobre um caso:
+
+| Camada | Pega | Exemplo |
+|---|---|---|
+| `require_any` apertado — título **começa** com "console", ou declara capacidade | acessório que ninguém catalogou | *"Luminária decorativa formato console PS5"* |
+| `exclude` com substantivos de acessório | acessório já conhecido | *"Chave Torx para abrir Console PS5"* |
+
+Depois da correção, a Americanas caiu de 76 para **40** produtos de console, e o PS5 Pro
+de 4 para **2** — os outros dois eram mochilas.
+
+**2. Bundle não detectado.** *"Console Playstation 5 God Of War Ragnarok 825GB Sony"* é
+um combo e não tem "+", nem "com", nem a palavra "bundle" — só o nome do jogo. A regra
+passou a reconhecer qualquer menção a jogo e uma lista de franquias comuns no varejo
+brasileiro.
+
+E um detalhe que só título real ensina: **todo PS5 vem com um controle**. "1 Controle" é
+conteúdo de caixa; "2 controles" ou "controle extra" é que indicam combo.
+
+**Os testes não teriam pego nenhum dos dois.** Eles usavam títulos que eu mesmo inventei,
+e eu inventei títulos bem-comportados. Pior: ao transformar os achados em teste, a
+primeira versão passou **pelo motivo errado** — eu dava preço de acessório aos
+acessórios, então eles caíam pela faixa de sanidade antes de o filtro de título ser
+exercitado. Os testes agora usam preço de console e leem o alvo do `config.yaml` de
+produção, para que teste e aplicação não possam divergir em silêncio.
+
+### Texto original do spike (mantido para referência)
 
 Responder, com evidência:
 

@@ -45,8 +45,29 @@ _RUIDO = re.compile(
 )
 
 # Sinais de que o anuncio e um combo.
+# Jogos que aparecem em combo de console no varejo brasileiro. A lista existe
+# porque muitos titulos listam o jogo sem nenhuma palavra-chave: "Console
+# Playstation 5 God Of War Ragnarok 825GB Sony" e um bundle, e nao tem "+",
+# nem "com", nem "bundle".
+_JOGOS = (
+    r"god\s+of\s+war|gran\s+turismo|astro\s*bot|horizon|spider[\s-]*man"
+    r"|returnal|ratchet|ea\s+(sports\s+)?fc|fifa|call\s+of\s+duty"
+    r"|last\s+of\s+us|ghost\s+of|miles\s+morales|hogwarts|mortal\s+kombat"
+)
+
+# Cuidado com o numero de controles: TODO PS5 vem com um. "1 Controle" e o
+# conteudo padrao da caixa; "2 controles" ou "controle extra" e que sao combo.
 _BUNDLE = re.compile(
-    r"(?i)(\+|\bbundle\b|\bcombo\b|\bacompanha\b|\bcom\s+jogo\b|\bedi[çc][ãa]o\s+bundle\b)"
+    r"(?i)("
+    r"\+"
+    r"|\bbundle\b|\bcombo\b|\bacompanha\b"
+    # Qualquer mencao a jogo incluso, com ou sem "com": "2 Jogos", "com jogo".
+    r"|\bjogos?\b"
+    r"|\bcontrole\s+extra\b"
+    r"|\b[2-9]\s*[ºo°]?\s*controles?\b"
+    r"|\bedi[çc][ãa]o\s+bundle\b"
+    rf"|{_JOGOS}"
+    r")"
 )
 
 
@@ -142,9 +163,16 @@ def normaliza(
                 continue
 
         if bruta.price_cash is None:
-            res.descartes[Descarte.SEM_PRECO] += 1
-            continue
-        if not (piso <= bruta.price_cash <= teto):
+            # Indisponivel sem preco e o estado NORMAL de um item esgotado -- a
+            # VTEX, por exemplo, nem envia `Installments` nesse caso. Precisamos
+            # registrar essa observacao: sem ela nao existe a transicao
+            # indisponivel -> disponivel, e o alerta de volta ao estoque nunca
+            # dispararia. Descartar so faz sentido quando o item esta a venda e
+            # mesmo assim veio sem preco, o que ai sim e parser quebrado.
+            if bruta.available:
+                res.descartes[Descarte.SEM_PRECO] += 1
+                continue
+        elif not (piso <= bruta.price_cash <= teto):
             log.warning(
                 "[%s] preco fora da faixa de sanidade: R$ %.2f em %r (%s)",
                 bruta.store, bruta.price_cash / 100, titulo[:60], bruta.url,
