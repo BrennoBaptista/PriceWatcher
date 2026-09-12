@@ -38,7 +38,7 @@ seção 5. Adicionar um produto novo é configuração, não refatoração.
 | Item | Definição |
 |---|---|
 | GPUs monitoradas | RX 9070 XT e RTX 5070 Ti — **todos** os fabricantes/modelos (ASUS, Gigabyte, MSI, Sapphire, PowerColor, XFX, Zotac, Galax, PNY, ASRock...) |
-| Lojas | Kabum, Pichau, Terabyteshop |
+| Lojas | Kabum, Pichau, Terabyteshop, Casa e Vídeo, Americanas, Zoom (agregador) |
 | Frequência | **3x/dia**, a cada 8 horas (configurável) |
 | Preço de referência | **À vista (PIX/boleto)** — preço parcelado guardado como dado secundário |
 | Gatilhos de alerta | **(a)** novo mínimo histórico · **(b)** produto voltou ao estoque |
@@ -176,9 +176,9 @@ Situação consolidada em 2026-09-11. Verificado contra os sites reais, não pre
 
 | Loja | Categoria | Fonte | Preço à vista | Disponibilidade | Onde está |
 |---|---|---|---|---|---|
-| **Kabum** | GPU | `__NEXT_DATA__` (Next.js Pages) | `priceWithDiscount` | `quantity > 0` | `main`, em produção |
-| **Pichau** | GPU | payload RSC (App Router) | `pichau_prices.avista` | `stock_status` | `main`, em produção |
-| **Terabyteshop** | GPU | HTML + `data-tss-*` | `data-tss-price` | `data-tss-estoque` | `main`, em produção |
+| **Kabum** | GPU + console | `__NEXT_DATA__` (Next.js Pages) | `priceWithDiscount` | `quantity > 0` | `main`, em produção |
+| **Pichau** | GPU + console | payload RSC (App Router) | `pichau_prices.avista` | `stock_status` | `main`, em produção |
+| **Terabyteshop** | GPU + console | HTML + `data-tss-*` | `data-tss-price` | `data-tss-estoque` | `main`, em produção |
 | **Americanas** | console | API pública VTEX | `Installments` → PIX 1x | `IsAvailable` + qtd | `fase5-ps5` |
 | **Casa e Vídeo** | console | API pública VTEX | `Installments` → PIX 1x | `IsAvailable` + qtd | `fase5-ps5` |
 
@@ -188,22 +188,97 @@ As duas últimas usam **o mesmo adapter**, parametrizado por domínio.
 
 | Loja | Motivo | Reversível? |
 |---|---|---|
-| **Casas Bahia** | Akamai Bot Manager — exige execução de JS | Só com navegador headless, que o servidor não comporta |
-| **Ponto** | idem (mesmo grupo da Casas Bahia) | idem |
-| **Magalu** | Akamai Bot Manager | idem |
+| **Casas Bahia** | Akamai Bot Manager — exige execução de JS | ✅ **Alcançada pelo agregador** (seção 4.3) |
+| **Ponto** | idem (mesmo grupo da Casas Bahia) | ✅ idem |
+| **Magalu** | Akamai Bot Manager | ✅ **Alcançada pelo agregador**, e foi de onde veio o melhor preço de GPU |
 | **Amazon.com.br** | Decisão de projeto: ToS restritivo e PA-API exige conta de Associados com vendas. Google Shopping foi avaliado como intermediário e rejeitado por qualidade de dado (seção 4.1) | Via agregador BR, na Fase 4 |
 
 **🔍 Não avaliada**
 
 | Loja | Situação |
 |---|---|
-| **Zoom / Buscapé** | Experimento previsto para a Fase 4. Cobriria indiretamente parte do que se perdeu acima |
+| **Zoom** | ✅ **Implementado** — ver seção 4.3. Buscapé e Bondfaro são o mesmo backend, não vale configurar |
 
 **Leitura honesta do placar.** Das 9 lojas consideradas, 5 coletam. As 4 que ficaram de
 fora caem em dois grupos: uma decisão consciente (Amazon) e um obstáculo técnico real
 (Akamai). Nenhuma foi perdida por limitação do nosso código — e vale notar que Casas
 Bahia e Ponto são a mesma empresa, então a perda efetiva são **dois grupos de varejo**,
 não três lojas independentes.
+
+### 4.3 Comparador de preços — Zoom (Fase 4)
+
+✅ **Spike e implementação em 2026-09-11.** O agregador entrou com um recorte estreito
+e deliberado: **só lojas que não alcançamos direto**.
+
+**Zoom, Buscapé e Bondfaro são a mesma fonte.** Os três devolveram dados byte a byte
+idênticos — mesmo `objectId`, mesmo preço, mesmas contagens. São fachadas de um backend
+só. Configurar mais de um seria coletar o mesmo dado três vezes.
+
+| Item | Resultado |
+|---|---|
+| Acesso | 200 com `curl_cffi`, sem bloqueio |
+| Estrutura | `__NEXT_DATA__` → `props.initialReduxState.hits.hits[]` |
+| Preço | campo `price` — a melhor oferta do produto |
+| Loja | `bestOffer.merchantName` |
+| Lojas vistas | Magazine Luiza, Amazon, Fast Shop, KaBuM! |
+
+**A regra que define o adapter:** ele aceita apenas as lojas da lista `merchants` na
+config. KaBuM!, Pichau e Terabyte ficam de fora **de propósito** — já temos o preço
+delas de primeira mão, e aceitar as duas fontes duplicaria alerta e deixaria um preço
+de segunda mão competir com o original.
+
+#### A auditoria, e por que ela existe
+
+O agregador não declara a base do preço. Se ele passar a publicar preço cheio em vez de
+à vista, **todos os produtos "cairiam" uns 15% de uma vez** — e isso passaria por todos
+os guardrails da seção 7: a queda é plausível, gradual entre produtos, e bate o mínimo
+histórico de cada um. Seria um disparo em massa de alertas falsos sem nada no log
+sugerindo o motivo. É o risco 7, agora concreto.
+
+`--auditoria` fecha isso **de graça**: o agregador conhece as três lojas que coletamos
+direto, então comparar o que ele diz sobre elas com o que buscamos nelas mede o erro
+usando dado que já temos. Medição real:
+
+```
+RX_9070_XT    kabum  agregador R$ 5.599,99 | nosso R$ 5.579,99 |  +0,4%
+RTX_5070_TI   kabum  agregador R$ 8.599,99 | nosso R$ 8.599,99 |  +0,0%
+```
+
+Preço cheio daria +15% a +18%. A evidência sustenta que o agregador publica o à vista —
+e agora isso é medido a cada execução, não presumido.
+
+#### O ganho, em dinheiro
+
+A Magazine Luiza apareceu com uma RX 9070 XT (XFX Quicksilver) a **R$ 4.589,99**, contra
+R$ 5.199,99 do melhor preço direto. R$ 610 que estávamos cegos para ver.
+
+#### Limitações aceitas
+
+- **Sem volta ao estoque.** O agregador só lista o que está à venda; produto esgotado
+  some da busca em vez de aparecer indisponível.
+- **Melhor oferta apenas.** A busca traz o menor preço e a loja que o pratica, não o
+  preço de cada loja — isso exigiria uma requisição por produto.
+- **Tipo de anúncio desconhecido.** Confiamos na identidade da loja, não sabemos se é
+  venda própria ou marketplace dentro do Magalu.
+- **Alerta marcado.** Mensagem vinda de agregador diz *"preço de comparador — confirme
+  na loja"*, porque não é um preço de primeira mão.
+
+### 4.4 KaBuM!, Pichau e Terabyte também vendem PS5
+
+Descoberto pela auditoria: ela mostrou o agregador citando a **KaBuM! com PS5 a
+R$ 4.091** — mais barato que qualquer coisa que tínhamos. Nós não víamos porque as três
+lojas de hardware estavam configuradas só para `gpu`.
+
+Bastou acrescentar `console` às categorias delas. O adapter já funcionava; era a config
+que limitava. **A KaBuM! passou a ser a fonte mais barata de PS5 Digital**, e de
+primeira mão.
+
+> ⚠️ Isso trouxe junto um falso positivo que só apareceu ao testar: a Pichau devolvia
+> **SSDs classificados como console**. *"SSD Corsair MP600 PRO LPX, 2TB"* tem "PS5" e
+> tem "2TB" no título, então satisfazia `require_all` e `require_any`, e custava
+> R$ 3.559 — dentro da faixa de sanidade do console. Viraria "mínimo histórico do
+> PS5 Pro". A regra `^ssd` resolve, e **não** pode ser `ssd`: console legítimo se
+> chama *"Console Sony PlayStation 5, SSD 825GB"*.
 
 ### 4.1 Cobertura da Amazon — análise e decisão
 
@@ -250,9 +325,9 @@ questão se encerra.
 - Delay aleatório de 2–6s entre requisições e jitter no horário da coleta.
 - Retry com backoff exponencial (3 tentativas) apenas em erro de rede/5xx.
 - Timeout de 20s por requisição.
-- Volume total: ~14–20 requisições por rodada (3 lojas × 2 GPUs + 2 lojas × 1 console,
-  mais paginação), **3x/dia**. Ainda tráfego desprezível — cerca de 50 requisições
-  diárias distribuídas entre cinco lojas.
+- Volume total: ~30 requisições por rodada (14 combinações loja × alvo, mais
+  paginação), **3x/dia**, e cerca de 3 minutos de duração. Continua desprezível por
+  loja: são ~90 requisições diárias divididas entre seis fontes.
 
 ---
 
@@ -1005,7 +1080,7 @@ Pricelookup/
 | **1 — Núcleo** ✅ | Config, modelos, DB, adapters Kabum + Pichau + Terabyte, normalizador | **Concluída em 2026-09-11.** `--run-once` coletou 843 ofertas reais → 107 mantidas, persistidas em SQLite; 34 testes offline passando |
 | **2 — Alertas** ✅ | Motor de alertas + guardrails + notificador com fan-out de destinos | **Concluída em 2026-09-11.** Motor com os 4 guardrails, digest único por rodada, roteamento por destino; 63 testes offline |
 | **3 — Container** 🟡 | Dockerfile, compose, scheduler, healthcheck, alertas operacionais | **Em produção desde 2026-09-11.** Build, `--selftest`, `--test-notify` e `--run-once` aprovados no servidor (844 ofertas → 106 mantidas). Fecha ao completar 48h sem intervenção |
-| **4 — Extras** | Experimento Zoom/Buscapé (seção 4.1) · comandos `/precos` e `/status` no bot · gráfico de histórico · export CSV | Sob demanda. O experimento do agregador só vira adapter definitivo se trouxer oferta melhor que as 3 lojas diretas |
+| **4 — Extras** 🟡 | ~~Experimento Zoom~~ ✅ (seção 4.3) · `--status` ✅ · `--auditoria` ✅ · comandos no bot · gráfico · export CSV | O agregador passou no critério: trouxe RX 9070 XT a R$ 4.589,99 contra R$ 5.199,99 do melhor direto. Resto sob demanda |
 | **5 — PS5** | Spike das plataformas · adapters do varejo generalista · variantes e bundles · regra 1P | Ver seção 18. **Independente da Fase 4** — pode vir antes |
 
 A Fase 1 já entrega o esquema agnóstico de categoria e o notificador com lista de

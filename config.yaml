@@ -23,9 +23,9 @@ notify:
 
 stores:
   # v1 -- hardware
-  kabum:      { enabled: true,  categories: [gpu] }
-  pichau:     { enabled: true,  categories: [gpu] }
-  terabyte:   { enabled: true,  categories: [gpu] }
+  kabum:      { enabled: true,  categories: [gpu, console] }
+  pichau:     { enabled: true,  categories: [gpu, console] }
+  terabyte:   { enabled: true,  categories: [gpu, console] }
   # Fase 5 -- varejo generalista. Ambas rodam VTEX e usam o MESMO adapter,
   # parametrizado pelo dominio. Ver secao 18 da SPEC.
   casaevideo: { enabled: true, categories: [console], platform: vtex,
@@ -33,12 +33,27 @@ stores:
   americanas: { enabled: true, categories: [console], platform: vtex,
                 base_url: "https://www.americanas.com.br" }
 
-  # Descartadas no spike da Fase 5: as tres ficam atras do Akamai Bot Manager,
-  # que exige execucao de JavaScript. O servidor e um Core 2 Duo e nao comporta
-  # navegador headless (secao 12), entao a decisao ja estava tomada.
+  # Diretamente inacessiveis: as tres ficam atras do Akamai Bot Manager, que
+  # exige execucao de JavaScript, e o servidor nao comporta navegador headless
+  # (secao 12). Sao alcancadas indiretamente pelo agregador abaixo.
   casasbahia: { enabled: false, categories: [console] }
   ponto:      { enabled: false, categories: [console] }
   magalu:     { enabled: false, categories: [console] }
+
+  # Comparador de precos. Existe para alcancar APENAS o que nao raspamos
+  # direto. Zoom, Buscape e Bondfaro sao o mesmo backend -- configurar mais de
+  # um seria coletar o mesmo dado tres vezes.
+  zoom:
+    enabled: true
+    categories: [gpu, console]
+    platform: agregador
+    base_url: "https://www.zoom.com.br"
+    # So estas. KaBuM!, Pichau e Terabyte saem daqui de proposito: ja temos o
+    # preco delas de primeira mao, e aceitar as duas fontes duplicaria alerta.
+    merchants: ["Magazine Luiza", "Amazon", "Fast Shop", "Casas Bahia", "Ponto"]
+    # Coletamos direto: servem para o --auditoria conferir se o preco que o
+    # agregador publica bate com o que buscamos na propria loja.
+    merchants_auditoria: ["KaBuM!", "Pichau", "Terabyte"]
 
 targets:
   - id: RX_9070_XT
@@ -66,7 +81,6 @@ targets:
       - '(?i)\b(pc\s*gamer|computador|notebook|desktop|kit\s*upgrade)\b'
     sanity_price_range_brl: [2500, 18000]
 
-  # Fase 5 -- ignorado enquanto nenhuma loja de console estiver habilitada.
   - id: PS5
     category: console
     label: "PlayStation 5"
@@ -91,6 +105,12 @@ targets:
       - '(?i)\b(ventilador|resfriamento|cooler|refrigera)'
       - '(?i)\b(adaptador|conversor|reprodutor|portal|headset|fone)\b'
       - '(?i)\b(cart[ãa]o|gift\s*card|psn|assinatura|jogo\s+para)\b'
+      # Comeca com o nome do acessorio. NAO usar '\bssd\b' solto: console
+      # legitimo se chama "Console Sony PlayStation 5, SSD 825GB". O que
+      # denuncia o acessorio e ele ABRIR o titulo -- mesma logica do '^pc'
+      # usado nas GPUs. Um SSD de 2TB tem "PS5" e "2TB" no titulo e custa
+      # R$ 3.500: sem isto, viraria "minimo historico do PS5 Pro".
+      - '(?i)^\s*(ssd|hd|mem[óo]ria|placa|fonte|gabinete|monitor|cadeira|mouse|teclado)\b'
     # Ordem importa: primeiro match vence. 'Pro' antes de 'Digital'.
     variants:
       - { key: PS5_PRO,          match_regex: '(?i)\bpro\b' }

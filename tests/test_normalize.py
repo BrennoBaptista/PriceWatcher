@@ -268,3 +268,31 @@ def test_acessorio_fora_da_lista_negra_cai_pelo_sinal_positivo(ps5_real, titulo)
     assert r.descartes[Descarte.NAO_CASA] == 1, (
         "deveria cair por falta de sinal positivo, nao pela lista de exclusao"
     )
+
+
+# SSDs reais que passavam por console: o titulo tem "PS5" e tem "2TB", entao
+# satisfazia require_all e require_any. Um SSD de R$ 3.559 dentro da faixa de
+# sanidade do console viraria "minimo historico do PS5 Pro".
+ACESSORIOS_QUE_ABREM_O_TITULO = [
+    "SSD Corsair MP600 PRO LPX, 2TB, M.2 2280, PCIe NVMe, compatível com PS5",
+    "SSD Corsair MP600 Elite For PS5, 2TB, M.2 2280, PCIe NVMe",
+    "SSD WD_Black SN850P, NVMe, 2TB, para consoles PS5",
+    "SSD Externo Portátil Sandisk Extreme Para PlayStation 5 e PC 2TB",
+]
+
+
+@pytest.mark.parametrize("titulo", ACESSORIOS_QUE_ABREM_O_TITULO)
+def test_ssd_para_ps5_nao_vira_console(ps5_real, titulo):
+    r = normaliza([oferta(titulo, 355999)], ps5_real)
+    assert r.ofertas == [], f"SSD aceito como console: {titulo!r}"
+
+
+def test_console_com_ssd_no_titulo_continua_sendo_aceito(ps5_real):
+    """A exclusao e por ABRIR o titulo, nao pela palavra: console legitimo se
+    chama 'Console Sony PlayStation 5, SSD 825GB'."""
+    r = normaliza(
+        [oferta("Console Sony PlayStation 5, SSD 825GB, Controle DualSense", 409107)],
+        ps5_real,
+    )
+    assert len(r.ofertas) == 1
+    assert r.ofertas[0].model_key.startswith("PS5_")

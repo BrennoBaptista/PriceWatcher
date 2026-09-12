@@ -17,6 +17,7 @@ from .normalize import normaliza
 from .stores.base import StoreAdapter
 from .stores.kabum import KabumAdapter
 from .stores.pichau import PichauAdapter
+from .stores.platforms.agregador import AgregadorAdapter
 from .stores.platforms.vtex import VtexAdapter
 from .stores.terabyte import TerabyteAdapter
 
@@ -30,7 +31,7 @@ ADAPTERS: dict[str, type[StoreAdapter]] = {
 }
 
 # Lojas atendidas por um adapter de plataforma, parametrizado pela config.
-PLATAFORMAS = {"vtex": VtexAdapter}
+PLATAFORMAS = {"vtex": VtexAdapter, "agregador": AgregadorAdapter}
 
 
 def monta_adapter(loja: str, cfg: AppConfig) -> StoreAdapter | None:
@@ -39,13 +40,24 @@ def monta_adapter(loja: str, cfg: AppConfig) -> StoreAdapter | None:
         return ADAPTERS[loja]()
 
     ajustes = cfg.stores.get(loja)
-    if ajustes and ajustes.platform in PLATAFORMAS:
-        if not ajustes.base_url:
-            log.error("loja %r usa plataforma %r mas nao tem base_url na config",
-                      loja, ajustes.platform)
+    if not ajustes or ajustes.platform not in PLATAFORMAS:
+        return None
+    if not ajustes.base_url:
+        log.error("loja %r usa plataforma %r mas nao tem base_url na config",
+                  loja, ajustes.platform)
+        return None
+
+    if ajustes.platform == "agregador":
+        if not ajustes.merchants:
+            log.error(
+                "agregador %r sem lista de lojas aceitas: coletaria tambem as "
+                "que ja raspamos direto, duplicando alerta", loja,
+            )
             return None
-        return PLATAFORMAS[ajustes.platform](loja, ajustes.base_url)
-    return None
+        return AgregadorAdapter(
+            loja, ajustes.base_url, ajustes.merchants, ajustes.merchants_auditoria
+        )
+    return PLATAFORMAS[ajustes.platform](loja, ajustes.base_url)
 
 
 @dataclass

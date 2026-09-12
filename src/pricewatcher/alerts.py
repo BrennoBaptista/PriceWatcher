@@ -44,6 +44,11 @@ class Alerta:
     bundle_note: str | None
 
     preco: int
+
+    vendedor: str | None = None
+    """Quem vende de fato. Igual a loja nas fontes diretas; numa fonte agregada
+    e a loja real por tras do comparador."""
+
     melhor_anterior: int | None = None
     novo_minimo: bool = False
     voltou_ao_estoque: bool = False
@@ -122,6 +127,7 @@ def avalia(
             loja=linha["store"],
             titulo=linha["title_raw"],
             url=linha["url"],
+            vendedor=linha["seller_name"],
             category=linha["category"],
             model_key=linha["model_key"],
             brand=linha["brand"],

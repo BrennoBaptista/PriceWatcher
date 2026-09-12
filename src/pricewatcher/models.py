@@ -121,6 +121,22 @@ class StoreSettings(BaseModel):
     platform: str | None = None
     base_url: str | None = None
 
+    merchants: list[str] = Field(default_factory=list)
+    """Agregador: lojas cujas ofertas aceitamos.
+
+    Existe para **nao contar a mesma loja duas vezes**. O agregador conhece
+    KaBuM!, Pichau e Terabyte, que ja raspamos direto e com preco de primeira
+    mao -- aceitar as duas fontes geraria alerta duplicado e, pior, deixaria o
+    preco de segunda mao competir com o original.
+    """
+
+    merchants_auditoria: list[str] = Field(default_factory=list)
+    """Agregador: lojas que coletamos direto e usamos para conferir o agregador.
+
+    Nao entram na base nem geram alerta. Servem para o comando de auditoria
+    comparar o preco que o agregador atribui a loja com o que buscamos nela.
+    """
+
 
 class NewLowRule(BaseModel):
     enabled: bool = True
