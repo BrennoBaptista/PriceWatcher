@@ -2,9 +2,8 @@
 # Segredos NAO ficam aqui: vem do .env via ${VARIAVEL}.
 
 schedule:
-  # A cada 6 horas. Mantem os horarios antigos (08:00 e 20:00) e preenche os
-  # intervalos, para o historico ja acumulado seguir comparavel.
-  times: ["02:00", "08:00", "14:00", "20:00"]
+  # A cada 8 horas: 3 coletas por dia.
+  times: ["00:00", "08:00", "16:00"]
   jitter_minutes: 15
 
 http:
@@ -105,11 +104,11 @@ alerts:
     min_observations: 3
     min_drop_percent: 1.0
     min_drop_brl: 100
-    # Acompanha o intervalo de coleta. Com coleta de 6 em 6 horas, um cooldown
-    # de 12h silenciaria uma rodada a cada duas. Nao ha risco de spam: o alerta
-    # exige minimo historico NOVO, entao para disparar de novo o preco precisa
-    # cair outros R$ 100 abaixo do que ja era o menor -- isso e noticia.
-    cooldown_hours: 6
+    # Acompanha o intervalo de coleta. Cooldown maior que o intervalo
+    # silenciaria rodadas inteiras. Nao ha risco de spam: o alerta exige minimo
+    # historico NOVO, entao para disparar de novo o preco precisa cair outros
+    # R$ 100 abaixo do que ja era o menor -- isso e noticia.
+    cooldown_hours: 8
   back_in_stock:
     enabled: true
     cooldown_hours: 24
