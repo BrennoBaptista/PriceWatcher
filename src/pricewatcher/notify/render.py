@@ -16,7 +16,16 @@ LOJAS = {
     "kabum": "KaBuM!",
     "pichau": "Pichau",
     "terabyte": "Terabyteshop",
+    "casaevideo": "Casa e Vídeo",
+    "americanas": "Americanas",
+    "zoom": "Zoom",
 }
+
+# Fontes cujo preco e de SEGUNDA MAO: vem de comparador, nao da loja. A
+# mensagem precisa dizer isso. Preco agregado pode estar defasado, e o risco 7
+# da SPEC existe justamente porque uma mudanca na base do que o comparador
+# publica geraria "minimo historico" falso que passa por todos os guardrails.
+FONTES_AGREGADAS = {"zoom", "buscape", "bondfaro"}
 
 
 def brl(centavos: int | None) -> str:
@@ -61,7 +70,18 @@ def _bloco(a: Alerta) -> str:
         preco += f"  (antes: {brl(a.melhor_anterior)} · -{pct}%)"
     linhas.append(preco)
 
-    linhas.append(f'{_loja(a.loja)} → <a href="{html.escape(a.url, quote=True)}">ver</a>')
+    link = f'<a href="{html.escape(a.url, quote=True)}">ver</a>'
+    if a.loja in FONTES_AGREGADAS:
+        # Preco de segunda mao: quem le precisa saber que a loja e outra e que
+        # o valor pode estar defasado. Sem isso, o alerta parece tao firme
+        # quanto um vindo direto da loja -- e nao e.
+        vendedor = html.escape(a.vendedor or "loja não identificada")
+        linhas.append(
+            f'<b>{vendedor}</b> · via {_loja(a.loja)} → {link}\n'
+            f'<i>preço de comparador — confirme na loja antes de comprar</i>'
+        )
+    else:
+        linhas.append(f"{_loja(a.loja)} → {link}")
     return "\n".join(linhas)
 
 

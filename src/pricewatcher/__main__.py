@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="usado pelo HEALTHCHECK do Docker")
     modo.add_argument("--status", action="store_true",
                       help="mostra ultima coleta, aquecimento, precos e agenda")
+    modo.add_argument("--auditoria", action="store_true",
+                      help="confere o preco do agregador contra o que coletamos direto")
     modo.add_argument("--test-notify", action="store_true",
                       help="manda uma mensagem de teste aos destinos")
 
@@ -93,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --status e --selftest sao somente-leitura: nao devem exigir os segredos
     # do Telegram so para responder se a ultima coleta rodou.
-    somente_leitura = args.status or args.selftest
+    somente_leitura = args.status or args.selftest or args.auditoria
     cfg = carrega(args.config, env=args.env, estrito=not somente_leitura)
     _log(os.environ.get("LOG_LEVEL", "INFO"))
 
@@ -104,6 +106,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.status:
         from .status import executa as mostra_status
         return mostra_status(cfg, caminho_db)
+
+    if args.auditoria:
+        from .auditoria import executa as audita
+        return audita(cfg, caminho_db)
 
     if args.test_notify:
         return _teste_notificacao(cfg)
