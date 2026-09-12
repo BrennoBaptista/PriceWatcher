@@ -45,17 +45,28 @@ _RUIDO = re.compile(
 )
 
 # Sinais de que o anuncio e um combo.
+# Jogos que aparecem em combo de console no varejo brasileiro. A lista existe
+# porque muitos titulos listam o jogo sem nenhuma palavra-chave: "Console
+# Playstation 5 God Of War Ragnarok 825GB Sony" e um bundle, e nao tem "+",
+# nem "com", nem "bundle".
+_JOGOS = (
+    r"god\s+of\s+war|gran\s+turismo|astro\s*bot|horizon|spider[\s-]*man"
+    r"|returnal|ratchet|ea\s+(sports\s+)?fc|fifa|call\s+of\s+duty"
+    r"|last\s+of\s+us|ghost\s+of|miles\s+morales|hogwarts|mortal\s+kombat"
+)
+
 # Cuidado com o numero de controles: TODO PS5 vem com um. "1 Controle" e o
 # conteudo padrao da caixa; "2 controles" ou "controle extra" e que sao combo.
-# Ja qualquer mencao a jogo incluso indica bundle.
 _BUNDLE = re.compile(
     r"(?i)("
     r"\+"
     r"|\bbundle\b|\bcombo\b|\bacompanha\b"
-    r"|\bcom\s+\d*\s*jogos?\b"
+    # Qualquer mencao a jogo incluso, com ou sem "com": "2 Jogos", "com jogo".
+    r"|\bjogos?\b"
     r"|\bcontrole\s+extra\b"
     r"|\b[2-9]\s*[ºo°]?\s*controles?\b"
     r"|\bedi[çc][ãa]o\s+bundle\b"
+    rf"|{_JOGOS}"
     r")"
 )
 

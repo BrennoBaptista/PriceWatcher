@@ -701,13 +701,24 @@ alerts:                                  # defaults globais
 
 **Sobre os filtros do PS5.** `require_all` é o sinal do produto; `require_any` é o sinal
 de que aquilo é um **console**, e não um acessório; `exclude` é a rede de segurança.
-Repare que a lista de exclusão **não** contém "controle" nem "jogo", de propósito: um
-bundle legítimo se chama *"PS5 + 2º controle DualSense"*, e excluir por essas palavras
-mataria exatamente o que decidimos rastrear. Quem separa console de acessório é o
-`require_any`, não a lista negra.
 
-Essa combinação é a parte mais frágil da Fase 5 e precisa ser validada com títulos reais
-no spike — ver seção 18.
+A lista de exclusão **não** contém "controle" nem "jogo", de propósito: um bundle
+legítimo se chama *"PS5 + 2º controle DualSense"*, e excluir por essas palavras mataria
+exatamente o que decidimos rastrear.
+
+> ⚠️ **Correção de uma afirmação anterior.** Esta seção dizia que "quem separa console de
+> acessório é o `require_any`, não a lista negra". **Estava errado**, e a revisão manual
+> dos títulos reais provou: o `require_any` original aceitava a palavra `console`, e
+> acessório em português se anuncia como *"para console PS5"*. Passaram por console uma
+> mochila, um cabo flat, uma **chave Torx**, tampas e uma dúzia de *PlayStation Portal* —
+> que é outro aparelho. Ver seção 18.2.
+>
+> Os dois mecanismos são necessários e cobrem coisas diferentes: a **lista de exclusão**
+> pega o acessório que já vimos; o **`require_any` apertado** (título começa com
+> "console", ou declara capacidade) pega o que ainda não vimos. Há teste separado para
+> cada papel — o do `require_any` usa acessórios propositalmente fora da lista negra,
+> porque com os títulos reais os dois critérios se sobrepõem e mascaram a contribuição
+> de cada um.
 
 ---
 
@@ -1014,7 +1025,7 @@ uma refatoração em vez de uma adição.
 | 6 | Container morre silenciosamente | `restart: unless-stopped` + healthcheck por idade da última rodada |
 | 7 | *(Fase 4)* Agregador muda a base do preço que publica e gera "mínimo" falso | Se o experimento virar adapter, marcar a fonte como `price_basis: aggregated` e exigir confirmação na loja de origem antes de alertar |
 | 8 | *(Fase 5)* Bundle comparado com console avulso gera "mínimo" inexistente | Série histórica é por SKU; `is_bundle` obrigatório em qualquer agregação (seções 5 e 18) |
-| 9 | *(Fase 5)* Filtro de acessório derruba bundles legítimos | Separação feita por `require_any` (sinal de console), não por lista negra de palavras; validado no spike com títulos reais |
+| 9 | *(Fase 5)* Filtro de acessório derruba bundles legítimos | "controle" e "jogo" ficam fora da lista de exclusão de propósito; a separação usa sinal positivo **e** lista negra, com teste para cada papel (seção 18.2) |
 | 10 | *(Fase 5)* Falha de envio a um destino silencia os demais | Fan-out com erro isolado por destino no `router.py` |
 
 ### Perguntas em aberto
@@ -1146,12 +1157,45 @@ As cinco perguntas do plano original, respondidas com evidência:
 | 4 | Alguma exige JavaScript? | **Três exigem** — e por isso foram descartadas |
 | 5 | Os filtros separam console de acessório sem matar bundles? | **Sim**, depois de ajuste — ver abaixo |
 
-Sobre a pergunta 5: o `require_any` (console/1TB/825GB) descarta jogo e acessório sem
-tocar nos combos, como planejado. Mas a detecção de bundle precisou de conserto —
-*"Console PlayStation 5 Slim Disk com 2 Jogos"* passava como avulso. Detalhe que só
-aparece com título real: **todo PS5 vem com um controle**, então "1 Controle" é conteúdo
-de caixa e "2 controles" ou "controle extra" é que indicam combo. A regra distingue os
-dois.
+Sobre a pergunta 5, a resposta inicial foi otimista demais e a revisão manual corrigiu —
+ver **18.2** logo abaixo.
+
+### 18.2 Revisão manual dos títulos — o que ela pegou
+
+A definição de pronto exigia "variantes classificadas corretamente numa amostra revisada
+à mão". Fiz isso sobre os **88 títulos de console** coletados, e foi a etapa que mais
+rendeu — dois problemas passavam despercebidos por todos os testes automatizados.
+
+**1. Acessório virando console.** Entre os 88, estavam mochila, bolsa, cabo flat, **chave
+Torx**, dock station, tampas, ventiladores e uma dúzia de *PlayStation Portal* — que é
+outro aparelho, não um PS5. Causa: `require_any` aceitava a palavra `console`, e
+acessório em português se anuncia como *"para console PS5"*. A palavra não discrimina
+nada.
+
+Correção em duas camadas, porque cada uma cobre um caso:
+
+| Camada | Pega | Exemplo |
+|---|---|---|
+| `require_any` apertado — título **começa** com "console", ou declara capacidade | acessório que ninguém catalogou | *"Luminária decorativa formato console PS5"* |
+| `exclude` com substantivos de acessório | acessório já conhecido | *"Chave Torx para abrir Console PS5"* |
+
+Depois da correção, a Americanas caiu de 76 para **40** produtos de console, e o PS5 Pro
+de 4 para **2** — os outros dois eram mochilas.
+
+**2. Bundle não detectado.** *"Console Playstation 5 God Of War Ragnarok 825GB Sony"* é
+um combo e não tem "+", nem "com", nem a palavra "bundle" — só o nome do jogo. A regra
+passou a reconhecer qualquer menção a jogo e uma lista de franquias comuns no varejo
+brasileiro.
+
+E um detalhe que só título real ensina: **todo PS5 vem com um controle**. "1 Controle" é
+conteúdo de caixa; "2 controles" ou "controle extra" é que indicam combo.
+
+**Os testes não teriam pego nenhum dos dois.** Eles usavam títulos que eu mesmo inventei,
+e eu inventei títulos bem-comportados. Pior: ao transformar os achados em teste, a
+primeira versão passou **pelo motivo errado** — eu dava preço de acessório aos
+acessórios, então eles caíam pela faixa de sanidade antes de o filtro de título ser
+exercitado. Os testes agora usam preço de console e leem o alvo do `config.yaml` de
+produção, para que teste e aplicação não possam divergir em silêncio.
 
 ### Texto original do spike (mantido para referência)
 

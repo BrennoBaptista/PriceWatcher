@@ -72,10 +72,24 @@ targets:
     search_terms: ["playstation 5", "console ps5"]
     include_bundles: true
     require_all: ['(?i)\b(playstation\s*5|ps5)\b']
-    require_any: ['(?i)\bconsole\b', '(?i)\b[12]\s*tb\b', '(?i)\b825\s*gb\b']
-    # Sem "controle" e sem "jogo" de proposito: bundle legitimo os contem.
+    # ATENCAO: a palavra "console" sozinha NAO serve de sinal positivo. Acessorio
+    # em portugues se anuncia como "para console PS5" -- revisao manual pegou
+    # mochila, cabo flat, chave Torx, tampa e PlayStation Portal passando por
+    # console. O sinal confiavel e o titulo COMECAR com "console", ou declarar
+    # capacidade de armazenamento.
+    require_any:
+      - '(?i)^\s*(novo\s+|kit\s+)?console\b'
+      - '(?i)\b(825\s*gb|[12]\s*tb)\b'
+    # Rede de seguranca: substantivos que nomeiam acessorio. "controle" e "jogo"
+    # continuam fora da lista de proposito -- bundle legitimo os contem.
     exclude:
-      - '(?i)\b(capa|skin|suporte|headset|cart[ãa]o|psn|gift\s*card|pel[íi]cula|adesivo)\b'
+      - '(?i)\b(mochila|bolsa|saco|estojo|maleta|capa|skin|pel[íi]cula|adesivo)\b'
+      - '(?i)\b(cabo|flat|flex|carregador|dock|base\s+de|suporte|stand)\b'
+      - '(?i)\b(chave|torx|kit\s+\d|parafus)'
+      - '(?i)\b(tampa|face\s*plate|placa\s+frontal|shell|painel|cover)\b'
+      - '(?i)\b(ventilador|resfriamento|cooler|refrigera)'
+      - '(?i)\b(adaptador|conversor|reprodutor|portal|headset|fone)\b'
+      - '(?i)\b(cart[ãa]o|gift\s*card|psn|assinatura|jogo\s+para)\b'
     # Ordem importa: primeiro match vence. 'Pro' antes de 'Digital'.
     variants:
       - { key: PS5_PRO,          match_regex: '(?i)\bpro\b' }
