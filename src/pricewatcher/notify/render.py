@@ -10,6 +10,7 @@ import html
 from datetime import datetime
 
 from ..alerts import Alerta
+from ..cupons import AlertaCupom
 from ..tempo import agora_local
 
 LOJAS = {
@@ -111,6 +112,29 @@ def digest(
     cabecalho = f"🟢 <b>{n} {palavra}</b> — {quando:%d/%m %H:%M}"
     partes = [AVISO_TESTE, cabecalho] if teste else [cabecalho]
     return "\n\n".join([*partes, *(_bloco(a) for a in alertas)])
+
+
+def _bloco_cupom(c: AlertaCupom) -> str:
+    linhas = ["🏷️ <b>CUPOM NOVO</b>"]
+    linhas.append(f"<b>{html.escape(c.discount_text)}</b> — {html.escape(c.scope_text)}")
+    linhas.append(f"código: <code>{html.escape(c.codigo)}</code>")
+    link = f'<a href="{html.escape(c.url, quote=True)}">ver</a>'
+    linhas.append(f"{_loja(c.loja)} → {link}")
+    return "\n".join(linhas)
+
+
+def cupons_digest(
+    cupons: list[AlertaCupom],
+    quando: datetime | None = None,
+    teste: bool = False,
+) -> str:
+    """Uma mensagem por rodada, mesmo padrao de `digest` (secao 7/19)."""
+    quando = quando or agora_local()
+    n = len(cupons)
+    palavra = "cupom novo" if n == 1 else "cupons novos"
+    cabecalho = f"🏷️ <b>{n} {palavra}</b> — {quando:%d/%m %H:%M}"
+    partes = [AVISO_TESTE, cabecalho] if teste else [cabecalho]
+    return "\n\n".join([*partes, *(_bloco_cupom(c) for c in cupons)])
 
 
 def operacional(falhas: list[tuple[str, str, str]], vazios: list[str]) -> str:

@@ -80,6 +80,29 @@ def executa(cfg: AppConfig, rede: bool = True) -> int:
             else:
                 print(f"    {loja:11} OK -- {len(brutas):>3} ofertas ({alvo.id})")
 
+    # 3. Cupons: pagina inteira da loja, sondada a parte -- nao e por Target.
+    from .collector import CUPOM_ADAPTERS
+
+    lojas_cupom = [
+        loja for loja in CUPOM_ADAPTERS
+        if cfg.coupons.enabled and (a := cfg.stores.get(loja)) and a.coupons_enabled
+    ]
+    if lojas_cupom:
+        print("\n  Sondando cupons, pelo adapter real:")
+        with Fetcher(timeout=cfg.http.timeout_seconds, retries=1) as f:
+            for loja in lojas_cupom:
+                try:
+                    cupons = CUPOM_ADAPTERS[loja]().fetch(f)
+                except Exception as e:  # noqa: BLE001
+                    print(f"    {loja:11} FALHOU -- {type(e).__name__}: {str(e)[:56]}")
+                    falhas += 1
+                    continue
+                if not cupons:
+                    print(f"    {loja:11} VAZIO -- respondeu, mas 0 cupons")
+                    falhas += 1
+                else:
+                    print(f"    {loja:11} OK -- {len(cupons):>3} cupons")
+
     print()
     if falhas:
         print(f"  {falhas} problema(s). Ver secoes 4 e 11.2 da SPEC.")

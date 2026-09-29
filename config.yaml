@@ -16,16 +16,17 @@ notify:
   destinations:
     - id: grupo
       chat_id: ${TELEGRAM_GROUP_CHAT_ID}
-      kinds: [price]          # todos os alertas de preco: GPU e console
+      kinds: [price, coupon]  # alertas de preco e de cupom relevante
     - id: brenno
       chat_id: ${TELEGRAM_CHAT_ID}
       kinds: [operational]    # so coletor quebrado; nao duplica alerta
 
 stores:
-  # v1 -- hardware
-  kabum:      { enabled: true,  categories: [gpu, console] }
-  pichau:     { enabled: true,  categories: [gpu, console] }
-  terabyte:   { enabled: true,  categories: [gpu, console] }
+  # v1 -- hardware. coupons_enabled: as 3 tem pagina propria de cupons e ja
+  # sao raspadas direto para preco -- ver secao 19 da SPEC.
+  kabum:      { enabled: true,  categories: [gpu, console], coupons_enabled: true }
+  pichau:     { enabled: true,  categories: [gpu, console], coupons_enabled: true }
+  terabyte:   { enabled: true,  categories: [gpu, console], coupons_enabled: true }
   # Fase 5 -- varejo generalista. Ambas rodam VTEX e usam o MESMO adapter,
   # parametrizado pelo dominio. Ver secao 18 da SPEC.
   casaevideo: { enabled: true, categories: [console], platform: vtex,
@@ -144,3 +145,35 @@ alerts:
   back_in_stock:
     enabled: true
     cooldown_hours: 24
+
+coupons:
+  # Cupom e store-wide, nao por Target -- pipeline paralelo (secao 19).
+  # So alerta se o texto do cupom (ou, para GPU, as letras miudas) bater com
+  # a categoria ja monitorada -- a maioria dos cupons das 3 lojas e generico
+  # (cadeira, monitor, processador) e nao interessa aqui.
+  enabled: true
+  cooldown_hours: 48
+  categories:
+    gpu:
+      require_any:
+        - '(?i)\bplacas?\s+de\s+v[ií]deo\b'
+        - '(?i)\bgpus?\b'
+        - '(?i)\brtx\b'
+        - '(?i)\bgeforce\b'
+        - '(?i)\bnvidia\b'
+      # Testado contra o texto legal/termos, nao a descricao curta: a Kabum
+      # exclui Placas de Video em varios cupons genericos cujo titulo nao
+      # menciona nada disso -- ver adapter kabum_cupons.py.
+      exclude:
+        - '(?i)\bplacas?\s+de\s+v[ií]deo\b'
+        - '(?i)\bgpus?\b'
+        - '(?i)\brtx\b'
+    console:
+      require_any:
+        - '(?i)\bplaystation\b'
+        - '(?i)\bps5\b'
+        - '(?i)\bconsole\b'
+      exclude:
+        - '(?i)\bplaystation\b'
+        - '(?i)\bps5\b'
+        - '(?i)\bconsole\b'

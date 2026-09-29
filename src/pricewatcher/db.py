@@ -16,12 +16,12 @@ import os
 import sqlite3
 from pathlib import Path
 
-from .models import NormalizedOffer, RunStatus
+from .models import Category, NormalizedOffer, RawCoupon, RunStatus
 from .tempo import agora_utc
 
 log = logging.getLogger(__name__)
 
-VERSAO_ESQUEMA = 1
+VERSAO_ESQUEMA = 2
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS product (
@@ -84,6 +84,28 @@ CREATE TABLE IF NOT EXISTS alert (
     delivered     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_alert_produto ON alert(product_id, kind, sent_at DESC);
+
+CREATE TABLE IF NOT EXISTS coupon (
+    id            INTEGER PRIMARY KEY,
+    store         TEXT NOT NULL,
+    code          TEXT NOT NULL,
+    discount_text TEXT NOT NULL,
+    scope_text    TEXT NOT NULL,
+    terms_text    TEXT,
+    url           TEXT NOT NULL,
+    categories    TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at  TEXT NOT NULL,
+    UNIQUE (store, code)
+);
+
+CREATE TABLE IF NOT EXISTS coupon_alert (
+    id         INTEGER PRIMARY KEY,
+    coupon_id  INTEGER NOT NULL REFERENCES coupon(id),
+    sent_at    TEXT NOT NULL,
+    delivered  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_coupon_alert ON coupon_alert(coupon_id, sent_at DESC);
 """
 
 
@@ -273,6 +295,63 @@ class Repo:
         )
         self.con.commit()
 
+    # --------------------------------------------------------------- cupons
+    def registra_cupom(
+        self, cupom: RawCoupon, categorias: list[Category]
+    ) -> tuple[int, bool]:
+        """Insere ou atualiza o cupom. Devolve (id, era_novo)."""
+        ts = agora()
+        existia = self.con.execute(
+            "SELECT id FROM coupon WHERE store=? AND code=?",
+            (cupom.store, cupom.code),
+        ).fetchone()
+        self.con.execute(
+            """
+            INSERT INTO coupon (store, code, discount_text, scope_text,
+                terms_text, url, categories, first_seen_at, last_seen_at)
+            VALUES (?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(store, code) DO UPDATE SET
+                discount_text=excluded.discount_text,
+                scope_text=excluded.scope_text,
+                terms_text=excluded.terms_text,
+                url=excluded.url,
+                categories=excluded.categories,
+                last_seen_at=excluded.last_seen_at
+            """,
+            (
+                cupom.store, cupom.code, cupom.discount_text, cupom.scope_text,
+                cupom.terms_text, cupom.url,
+                ",".join(str(c) for c in categorias), ts, ts,
+            ),
+        )
+        coupon_id = int(
+            self.con.execute(
+                "SELECT id FROM coupon WHERE store=? AND code=?",
+                (cupom.store, cupom.code),
+            ).fetchone()[0]
+        )
+        return coupon_id, existia is None
+
+    def cupom(self, coupon_id: int) -> sqlite3.Row:
+        return self.con.execute(
+            "SELECT * FROM coupon WHERE id=?", (coupon_id,)
+        ).fetchone()
+
+    def ultimo_alerta_cupom(self, coupon_id: int) -> str | None:
+        linha = self.con.execute(
+            "SELECT sent_at FROM coupon_alert WHERE coupon_id=? "
+            "ORDER BY sent_at DESC LIMIT 1",
+            (coupon_id,),
+        ).fetchone()
+        return linha[0] if linha else None
+
+    def registra_alerta_cupom(self, coupon_id: int, entregue: bool) -> None:
+        self.con.execute(
+            "INSERT INTO coupon_alert (coupon_id, sent_at, delivered) VALUES (?,?,?)",
+            (coupon_id, agora(), int(entregue)),
+        )
+        self.con.commit()
+
     def falhas_consecutivas(self, minimo: int = 2) -> list[tuple[str, str, str]]:
         """(loja, alvo, erro) que falharam nas N ultimas rodadas seguidas."""
         pares = self.con.execute(
@@ -307,6 +386,6 @@ class Repo:
 
     def contagens(self) -> dict[str, int]:
         t = {}
-        for tabela in ("product", "price_point", "collection_run"):
+        for tabela in ("product", "price_point", "collection_run", "coupon"):
             t[tabela] = self.con.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0]
         return t
