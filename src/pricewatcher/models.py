@@ -68,6 +68,25 @@ class NormalizedOffer(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Cupons -- pipeline paralelo ao de oferta/preco (secao 19 da SPEC)
+# --------------------------------------------------------------------------
+class RawCoupon(BaseModel):
+    """Cupom como a pagina de cupons da loja o expoe, sem filtro de relevancia."""
+
+    store: str
+    code: str
+    discount_text: str
+    scope_text: str
+    terms_text: str | None = None
+    """Letras miudas/condicoes, quando a loja expoe. Pode conter EXCLUSAO de
+    categoria (ex.: Kabum exclui Placas de Video em varios cupons genericos) --
+    e por isso que o filtro de relevancia precisa deste campo, nao so do
+    `scope_text`."""
+
+    url: str
+
+
+# --------------------------------------------------------------------------
 # Configuracao
 # --------------------------------------------------------------------------
 class VariantRule(BaseModel):
@@ -120,6 +139,7 @@ class StoreSettings(BaseModel):
     categories: list[Category] = Field(default_factory=list)
     platform: str | None = None
     base_url: str | None = None
+    coupons_enabled: bool = False
 
     merchants: list[str] = Field(default_factory=list)
     """Agregador: lojas cujas ofertas aceitamos.
@@ -156,6 +176,28 @@ class AlertsConfig(BaseModel):
     back_in_stock: BackInStockRule = Field(default_factory=BackInStockRule)
 
 
+class CouponCategoryRule(BaseModel):
+    """Relevancia de cupom para uma categoria -- mesma forma de `Target`,
+    reduzida aos dois campos que fazem sentido para texto de cupom (sem
+    match_regex/preco/variants, que sao conceitos de oferta, nao de cupom)."""
+
+    require_any: list[str] = Field(default_factory=list)
+    exclude: list[str] = Field(default_factory=list)
+
+    @field_validator("require_any", "exclude")
+    @classmethod
+    def _compila(cls, v: list[str]) -> list[str]:
+        for p in v:
+            re.compile(p)
+        return v
+
+
+class CouponsConfig(BaseModel):
+    enabled: bool = False
+    cooldown_hours: int = 48
+    categories: dict[Category, CouponCategoryRule] = Field(default_factory=dict)
+
+
 class Destination(BaseModel):
     id: str
     chat_id: str
@@ -186,6 +228,7 @@ class AppConfig(BaseModel):
     stores: dict[str, StoreSettings] = Field(default_factory=dict)
     targets: list[Target] = Field(default_factory=list)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
+    coupons: CouponsConfig = Field(default_factory=CouponsConfig)
 
     def stores_for(self, category: Category) -> list[str]:
         """Lojas habilitadas que atendem esta categoria."""

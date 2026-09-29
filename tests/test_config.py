@@ -74,10 +74,15 @@ def test_config_de_producao_carrega(monkeypatch):
     from pathlib import Path
 
     cfg = carrega(Path("config.yaml"), estrito=False)
-    assert {t.id for t in cfg.targets} >= {"RX_9070_XT", "RTX_5070_TI", "PS5"}
+    assert {t.id for t in cfg.targets} >= {
+        "RTX_5060_TI", "RTX_5070", "RTX_5070_TI", "PS5",
+    }
     assert "casaevideo" in cfg.stores_for("console")
     assert "americanas" in cfg.stores_for("console")
     assert "kabum" in cfg.stores_for("gpu")
+    assert cfg.coupons.enabled
+    for loja in ("kabum", "pichau", "terabyte"):
+        assert cfg.stores[loja].coupons_enabled
     # Lojas bloqueadas pelo Akamai ficam desabilitadas (secao 18 da SPEC).
     for bloqueada in ("casasbahia", "ponto", "magalu"):
         assert not cfg.stores[bloqueada].enabled

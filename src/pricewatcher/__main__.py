@@ -9,8 +9,9 @@ import sys
 from pathlib import Path
 
 from .alerts import avalia
-from .collector import coleta
+from .collector import coleta, coleta_cupons
 from .config import carrega
+from .cupons import avalia_cupons
 from .db import Repo
 from .notify import render
 from .notify.router import Router
@@ -142,7 +143,9 @@ def _rodada(
         alertas = avalia(
             repo, resumo.produtos, cfg.alerts, alvos={t.id: t for t in cfg.targets}
         )
-        _relatorio(repo, resumo, alertas, caminho_db)
+        resumo_cupons = coleta_cupons(cfg, repo)
+        cupons = avalia_cupons(repo, resumo_cupons.novos, cfg.coupons)
+        _relatorio(repo, resumo, alertas, caminho_db, resumo_cupons, cupons)
 
         marca = e_execucao_manual() if marcar_teste is None else marcar_teste
         if dry_run:
@@ -150,10 +153,14 @@ def _rodada(
                 print("--- mensagem que seria enviada ---")
                 print(render.digest(alertas, teste=marca))
                 print()
+            if cupons:
+                print("--- cupons que seriam enviados ---")
+                print(render.cupons_digest(cupons, teste=marca))
+                print()
         else:
-            _notifica(cfg, repo, resumo, alertas, teste=marca)
+            _notifica(cfg, repo, resumo, alertas, cupons, teste=marca)
 
-    return 1 if resumo.falhas else 0
+    return 1 if resumo.falhas or resumo_cupons.falhas else 0
 
 
 def _serve(cfg, caminho_db: Path, args) -> int:
@@ -204,15 +211,16 @@ def _transporte():
     return TelegramNotifier(token)
 
 
-def _notifica(cfg, repo: Repo, resumo, alertas, teste: bool | None = None) -> None:
+def _notifica(cfg, repo: Repo, resumo, alertas, cupons=(), teste: bool | None = None) -> None:
     try:
         router = Router(cfg.notify, _transporte())
     except Exception as e:  # noqa: BLE001
         log.error("notificacao indisponivel: %s", e)
         return
 
+    marca = e_execucao_manual() if teste is None else teste
+
     if alertas:
-        marca = e_execucao_manual() if teste is None else teste
         entregues = router.envia_precos(alertas, agora_local(), teste=marca)
         houve_entrega = any(entregues.values())
         for a in alertas:
@@ -220,6 +228,12 @@ def _notifica(cfg, repo: Repo, resumo, alertas, teste: bool | None = None) -> No
                 repo.registra_alerta(
                     a.produto_id, kind, a.preco, a.melhor_anterior, houve_entrega
                 )
+
+    if cupons:
+        entregues = router.envia_cupons(cupons, agora_local(), teste=marca)
+        houve_entrega = any(entregues.values())
+        for c in cupons:
+            repo.registra_alerta_cupom(c.coupon_id, houve_entrega)
 
     falhas = repo.falhas_consecutivas(minimo=2)
     if falhas or resumo.vazias:
@@ -242,7 +256,9 @@ def _teste_notificacao(cfg) -> int:
 
 
 # ---------------------------------------------------------------- relatorio
-def _relatorio(repo: Repo, resumo, alertas, caminho_db: Path) -> None:
+def _relatorio(
+    repo: Repo, resumo, alertas, caminho_db: Path, resumo_cupons=None, cupons=()
+) -> None:
     print()
     print("=" * 72)
     print(f"COLETA CONCLUIDA -- {agora_local():%d/%m/%Y %H:%M %Z}")
@@ -251,6 +267,7 @@ def _relatorio(repo: Repo, resumo, alertas, caminho_db: Path) -> None:
     print(f"  ofertas encontradas : {resumo.encontradas}")
     print(f"  ofertas mantidas    : {resumo.mantidas}")
     print(f"  alertas disparados  : {len(alertas)}")
+    print(f"  cupons novos        : {len(cupons)}")
 
     if resumo.falhas:
         print(f"\n  FALHAS ({len(resumo.falhas)}):")
@@ -260,6 +277,16 @@ def _relatorio(repo: Repo, resumo, alertas, caminho_db: Path) -> None:
         print(f"\n  ZERO VALIDOS ({len(resumo.vazias)}) -- possivel parser quebrado:")
         for v in resumo.vazias:
             print(f"    - {v}")
+    if resumo_cupons and resumo_cupons.falhas:
+        print(f"\n  FALHAS NA COLETA DE CUPONS ({len(resumo_cupons.falhas)}):")
+        for f in resumo_cupons.falhas:
+            print(f"    - {f}")
+
+    if cupons:
+        print("\n  Cupons:")
+        for c in cupons:
+            cats = "+".join(str(cat) for cat in c.categorias)
+            print(f"    [{cats}] {c.codigo:<16} {c.discount_text} -- {c.loja}")
 
     if alertas:
         print("\n  Alertas:")

@@ -10,16 +10,20 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from .cupons import relevancia
 from .db import Repo
 from .http import Fetcher
 from .models import AppConfig, RunStatus, Target
 from .normalize import normaliza
-from .stores.base import StoreAdapter
+from .stores.base import CouponAdapter, StoreAdapter
 from .stores.kabum import KabumAdapter
+from .stores.kabum_cupons import KabumCouponAdapter
 from .stores.pichau import PichauAdapter
+from .stores.pichau_cupons import PichauCouponAdapter
 from .stores.platforms.agregador import AgregadorAdapter
 from .stores.platforms.vtex import VtexAdapter
 from .stores.terabyte import TerabyteAdapter
+from .stores.terabyte_cupons import TerabyteCouponAdapter
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +36,13 @@ ADAPTERS: dict[str, type[StoreAdapter]] = {
 
 # Lojas atendidas por um adapter de plataforma, parametrizado pela config.
 PLATAFORMAS = {"vtex": VtexAdapter, "agregador": AgregadorAdapter}
+
+# Cupom e por loja inteira, nao por Target -- registro a parte (secao 19).
+CUPOM_ADAPTERS: dict[str, type[CouponAdapter]] = {
+    "kabum": KabumCouponAdapter,
+    "pichau": PichauCouponAdapter,
+    "terabyte": TerabyteCouponAdapter,
+}
 
 
 def monta_adapter(loja: str, cfg: AppConfig) -> StoreAdapter | None:
@@ -138,3 +149,49 @@ def _coleta_uma(
         "[%s/%s] %d brutos -> %d mantidos (descartes: %s)",
         loja, target.id, len(brutas), len(res.ofertas), dict(res.descartes),
     )
+
+
+@dataclass
+class ResumoCupons:
+    falhas: list[str] = field(default_factory=list)
+    novos: list[int] = field(default_factory=list)
+    """Ids dos cupons relevantes vistos pela primeira vez nesta rodada."""
+
+
+def coleta_cupons(cfg: AppConfig, repo: Repo) -> ResumoCupons:
+    """Coleta store-wide: uma pagina por loja, nao uma busca por Target."""
+    resumo = ResumoCupons()
+    if not cfg.coupons.enabled:
+        return resumo
+
+    lojas = [
+        loja for loja in CUPOM_ADAPTERS
+        if (ajustes := cfg.stores.get(loja)) and ajustes.coupons_enabled
+    ]
+    if not lojas:
+        return resumo
+
+    with Fetcher(
+        timeout=cfg.http.timeout_seconds,
+        retries=cfg.http.retries,
+        delay_min=cfg.http.delay_min_seconds,
+        delay_max=cfg.http.delay_max_seconds,
+    ) as fetcher:
+        for loja in lojas:
+            try:
+                brutos = CUPOM_ADAPTERS[loja]().fetch(fetcher)
+            except Exception as e:  # noqa: BLE001 -- isolamento e o objetivo
+                log.exception("[%s] coleta de cupons falhou", loja)
+                resumo.falhas.append(f"{loja}: {type(e).__name__}: {e}")
+                continue
+
+            for cupom in brutos:
+                categorias = relevancia(cupom, cfg.coupons)
+                if not categorias:
+                    continue
+                coupon_id, era_novo = repo.registra_cupom(cupom, categorias)
+                if era_novo:
+                    resumo.novos.append(coupon_id)
+            repo.commit()
+
+    return resumo

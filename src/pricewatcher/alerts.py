@@ -75,7 +75,7 @@ class Alerta:
         return (self.melhor_anterior - self.preco) / self.melhor_anterior * 100
 
 
-def _recente(carimbo: str | None, horas: int) -> bool:
+def recente(carimbo: str | None, horas: int) -> bool:
     if not carimbo:
         return False
     try:
@@ -188,7 +188,7 @@ def _avalia_minimo(repo, cfg, target, alerta, atual, anteriores) -> bool:
     if (queda / melhor * 100) < pct_min:
         return False
 
-    if _recente(repo.ultimo_alerta(alerta.produto_id, NOVO_MINIMO), cooldown):
+    if recente(repo.ultimo_alerta(alerta.produto_id, NOVO_MINIMO), cooldown):
         log.debug("cooldown ativo para %s", alerta.produto_id)
         return False
 
@@ -204,6 +204,6 @@ def _avalia_estoque(repo, cfg, alerta, atual, anteriores) -> bool:
         return False
     if anteriores[-1]["available"]:
         return False
-    if _recente(repo.ultimo_alerta(alerta.produto_id, VOLTA_ESTOQUE), regra.cooldown_hours):
+    if recente(repo.ultimo_alerta(alerta.produto_id, VOLTA_ESTOQUE), regra.cooldown_hours):
         return False
     return True

@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 
 from ..alerts import Alerta
+from ..cupons import AlertaCupom
 from ..models import Destination, NotifyConfig
 from . import render
 
@@ -18,12 +19,13 @@ log = logging.getLogger(__name__)
 
 PRECO = "price"
 OPERACIONAL = "operational"
+CUPOM = "coupon"
 
 
 def _aceita(dest: Destination, kind: str, categorias: set[str]) -> bool:
     if dest.kinds and kind not in dest.kinds:
         return False
-    if kind == PRECO and dest.categories:
+    if kind in (PRECO, CUPOM) and dest.categories:
         permitidas = {str(c) for c in dest.categories}
         if not (categorias & permitidas):
             return False
@@ -52,6 +54,26 @@ class Router:
             if not desejados:
                 continue
             texto = render.digest(desejados, quando, teste=teste)
+            entregues[dest.id] = self._entrega(dest, texto)
+        return entregues
+
+    def envia_cupons(
+        self,
+        cupons: list[AlertaCupom],
+        quando: datetime | None = None,
+        teste: bool = False,
+    ) -> dict[str, bool]:
+        if not cupons:
+            return {}
+        entregues: dict[str, bool] = {}
+        for dest in self._destinos:
+            desejados = [
+                c for c in cupons
+                if _aceita(dest, CUPOM, {str(cat) for cat in c.categorias})
+            ]
+            if not desejados:
+                continue
+            texto = render.cupons_digest(desejados, quando, teste=teste)
             entregues[dest.id] = self._entrega(dest, texto)
         return entregues
 

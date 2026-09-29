@@ -10,7 +10,7 @@ import re
 from typing import Protocol
 
 from ..http import Fetcher
-from ..models import RawOffer, Target
+from ..models import RawCoupon, RawOffer, Target
 
 
 def para_centavos(valor: str | float | int | None) -> int | None:
@@ -58,5 +58,20 @@ class StoreAdapter(Protocol):
 
         Filtro e responsabilidade do normalizador -- o adapter so traduz o
         formato da loja para RawOffer.
+        """
+        ...
+
+
+class CouponAdapter(Protocol):
+    """Cupom e da loja inteira, nao de um `Target` -- uma pagina por rodada,
+    nao uma busca por termo."""
+
+    name: str
+
+    def fetch(self, fetcher: Fetcher) -> list[RawCoupon]:
+        """Devolve os cupons ativos listados na pagina de cupons da loja.
+
+        Filtro de relevancia (secao 19) e responsabilidade de `cupons.py`, nao
+        do adapter.
         """
         ...
