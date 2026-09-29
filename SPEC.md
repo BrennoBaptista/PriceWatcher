@@ -17,7 +17,7 @@ manual.
 
 | Fase | Produto | Lojas |
 |---|---|---|
-| v1 (Fases 0–3) | Placas de vídeo **RX 9070 XT** e **RTX 5070 Ti** | Kabum, Pichau, Terabyteshop |
+| v1 (Fases 0–3) | Placas de vídeo **RTX 5060 Ti**, **RTX 5070** e **RTX 5070 Ti** | Kabum, Pichau, Terabyteshop |
 | Fase 5 | Console **Sony PlayStation 5** (todas as variantes, incluindo bundles) | Americanas, Casa e Vídeo |
 
 O modelo de dados e os coletores são **agnósticos de categoria** desde a Fase 1 — ver
@@ -37,7 +37,7 @@ seção 5. Adicionar um produto novo é configuração, não refatoração.
 
 | Item | Definição |
 |---|---|
-| GPUs monitoradas | RX 9070 XT e RTX 5070 Ti — **todos** os fabricantes/modelos (ASUS, Gigabyte, MSI, Sapphire, PowerColor, XFX, Zotac, Galax, PNY, ASRock...) |
+| GPUs monitoradas | RTX 5060 Ti, RTX 5070 e RTX 5070 Ti — **todos** os fabricantes/modelos (ASUS, Gigabyte, MSI, Sapphire, PowerColor, XFX, Zotac, Galax, PNY, ASRock...) |
 | Lojas | Kabum, Pichau, Terabyteshop, Casa e Vídeo, Americanas, Zoom (agregador) |
 | Frequência | **3x/dia**, a cada 8 horas (configurável) |
 | Preço de referência | **À vista (PIX/boleto)** — preço parcelado guardado como dado secundário |
@@ -730,12 +730,19 @@ stores:
   # zoom:     { enabled: false }         # experimento da Fase 4 — ver seção 4.1
 
 targets:
-  - id: RX_9070_XT
+  - id: RTX_5060_TI
     category: gpu
-    label: "Radeon RX 9070 XT"
-    search_terms: ["rx 9070 xt", "radeon 9070 xt"]
-    match_regex: '(?i)\b(rx\s*)?9070\s*xt\b'
-    sanity_price_range_brl: [2000, 15000]
+    label: "GeForce RTX 5060 Ti"
+    search_terms: ["rtx 5060 ti", "geforce 5060 ti"]
+    match_regex: '(?i)\b(rtx\s*)?5060\s*ti\b'
+    sanity_price_range_brl: [1500, 8000]
+
+  - id: RTX_5070
+    category: gpu
+    label: "GeForce RTX 5070"
+    search_terms: ["rtx 5070", "geforce 5070"]
+    match_regex: '(?i)\b(rtx\s*)?5070\b(?!\s*ti)'
+    sanity_price_range_brl: [2500, 12000]
 
   - id: RTX_5070_TI
     category: gpu

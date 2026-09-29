@@ -108,9 +108,11 @@ def test_selftest_sonda_todos_os_alvos_da_loja():
         for loja in cfg.stores_for(alvo.category)
     }
     assert {(loja, alvo.id) for loja, alvo in pares} == esperado
-    # Concretamente: as lojas de hardware precisam sondar os dois alvos de GPU.
+    # Concretamente: as lojas de hardware precisam sondar os tres alvos de GPU.
     # Subconjunto, nao igualdade -- elas tambem atendem console desde a seção 4.4,
     # e travar a lista exata faria o teste falhar a cada alvo novo.
     for loja in ("kabum", "pichau", "terabyte"):
         alvos = {a.id for lj, a in pares if lj == loja}
-        assert {"RX_9070_XT", "RTX_5070_TI"} <= alvos, f"{loja} sonda so {alvos}"
+        assert {"RTX_5060_TI", "RTX_5070", "RTX_5070_TI"} <= alvos, (
+            f"{loja} sonda so {alvos}"
+        )

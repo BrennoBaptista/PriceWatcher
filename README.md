@@ -7,7 +7,7 @@ Roda como um único container Docker num servidor pessoal.
 
 | Fase | Produto | Lojas |
 |---|---|---|
-| v1 | Placas de vídeo **RX 9070 XT** e **RTX 5070 Ti** | Kabum, Pichau, Terabyteshop |
+| v1 | Placas de vídeo **RTX 5060 Ti**, **RTX 5070** e **RTX 5070 Ti** | Kabum, Pichau, Terabyteshop |
 | Fase 5 | Console **PlayStation 5** (todas as variantes e bundles) | Casas Bahia, Ponto, Magalu, Americanas, Casa e Vídeo |
 
 ## Status

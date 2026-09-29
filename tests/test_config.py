@@ -74,7 +74,9 @@ def test_config_de_producao_carrega(monkeypatch):
     from pathlib import Path
 
     cfg = carrega(Path("config.yaml"), estrito=False)
-    assert {t.id for t in cfg.targets} >= {"RX_9070_XT", "RTX_5070_TI", "PS5"}
+    assert {t.id for t in cfg.targets} >= {
+        "RTX_5060_TI", "RTX_5070", "RTX_5070_TI", "PS5",
+    }
     assert "casaevideo" in cfg.stores_for("console")
     assert "americanas" in cfg.stores_for("console")
     assert "kabum" in cfg.stores_for("gpu")

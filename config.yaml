@@ -56,18 +56,30 @@ stores:
     merchants_auditoria: ["KaBuM!", "Pichau", "Terabyte"]
 
 targets:
-  - id: RX_9070_XT
+  - id: RTX_5060_TI
     category: gpu
-    label: "Radeon RX 9070 XT"
-    search_terms: ["rx 9070 xt"]
-    match_regex: '(?i)\b(rx\s*)?9070\s*xt\b'
+    label: "GeForce RTX 5060 Ti"
+    search_terms: ["rtx 5060 ti"]
+    match_regex: '(?i)\b(rtx\s*)?5060\s*ti\b'
     # A busca das lojas devolve PC montado que apenas menciona a placa.
     exclude:
       # '^pc' pega "PC IA EXPERT", "PC Gamer", "PC Pro". A faixa de sanidade
       # flagrou dois desses a R$ 21k e R$ 32k que a lista antiga deixava passar.
       - '(?i)^\s*pc\b'
       - '(?i)\b(pc\s*gamer|computador|notebook|desktop|kit\s*upgrade)\b'
-    sanity_price_range_brl: [2000, 15000]
+    sanity_price_range_brl: [1500, 8000]
+
+  - id: RTX_5070
+    category: gpu
+    label: "GeForce RTX 5070"
+    search_terms: ["rtx 5070"]
+    # Negativo de "ti" no fim: a busca por "rtx 5070" tambem devolve a 5070 Ti,
+    # que e alvo separado (RTX_5070_TI) e nao pode ser contada aqui.
+    match_regex: '(?i)\b(rtx\s*)?5070\b(?!\s*ti)'
+    exclude:
+      - '(?i)^\s*pc\b'
+      - '(?i)\b(pc\s*gamer|computador|notebook|desktop|kit\s*upgrade)\b'
+    sanity_price_range_brl: [2500, 12000]
 
   - id: RTX_5070_TI
     category: gpu
